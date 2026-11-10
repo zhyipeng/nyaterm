@@ -15,12 +15,13 @@ in `docs-site/src/data/changelogData.ts`; update both locations when preparing a
 
 ### Added
 
-- **terminal:** Add customizable shortcuts for tiling sessions top-to-bottom and side-by-side.
+- **terminal:** Add customizable shortcuts for splitting the active pane top-to-bottom and side-by-side.
 - **terminal:** Add four-direction split-pane focus navigation with shortcuts and menu entries.
 - **assets:** Add multi-select batch editing for saved connections and full MobaXterm session import.
 
 ### Changed
 
+- **terminal:** Split panes by duplicating the active session instead of tiling every open tab.
 - **settings:** Offer to remove a conflicting shortcut binding when the same capture is confirmed again, and support explicitly unbound shortcuts.
 - **terminal:** Show the current working directory's name in workspace tab titles after the connection name.
 - **cloud-sync:** Compress local replica storage, reclaim free database pages, and remove the sync-version selector.

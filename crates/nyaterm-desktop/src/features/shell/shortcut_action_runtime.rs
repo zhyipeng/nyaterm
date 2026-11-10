@@ -1,7 +1,9 @@
 use gpui::{Context, Div, InteractiveElement, Stateful, Window};
 
 use crate::features::NyaTermApp;
-use crate::models::{NavItem, PaneNavigationDirection, SmartSplitMode, StartupCommandAction};
+use crate::models::{
+    NavItem, PaneNavigationDirection, StartupCommandAction, WorkspaceSplitDirection,
+};
 use crate::shortcuts::{
     CloseTab, CopySelectedConnections, DuplicateSession, DuplicateSessionWithCommand, LockScreen,
     ManageSyncGroups, MultiplexSsh, MultiplexSshWithCommand, NavigatePaneDown, NavigatePaneLeft,
@@ -217,8 +219,12 @@ impl NyaTermApp {
             ShortcutId::MultiplexSshWithCommand => {
                 self.open_startup_command_dialog_for(StartupCommandAction::Multiplex, window, cx)
             }
-            ShortcutId::TileHorizontal => self.apply_smart_split(SmartSplitMode::Horizontal, cx),
-            ShortcutId::TileVertical => self.apply_smart_split(SmartSplitMode::Vertical, cx),
+            ShortcutId::TileHorizontal => {
+                self.split_workspace_with_duplicate(WorkspaceSplitDirection::Horizontal, window, cx)
+            }
+            ShortcutId::TileVertical => {
+                self.split_workspace_with_duplicate(WorkspaceSplitDirection::Vertical, window, cx)
+            }
             ShortcutId::NavigatePaneLeft => {
                 self.navigate_terminal_pane(PaneNavigationDirection::Left, window, cx)
             }

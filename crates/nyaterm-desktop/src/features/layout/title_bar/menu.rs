@@ -10,7 +10,7 @@ use super::definition::{TitleMenuCommand, TitleMenuDefinition, TitleMenuKind};
 use crate::features::NyaTermApp;
 use crate::models::{
     ActivityBarEntry, ActivityBarZone, HeaderStatusMode, NavItem, PaneNavigationDirection,
-    PanelOpenMode, PanelSide, SmartSplitMode, TitleMenu,
+    PanelOpenMode, PanelSide, SmartSplitMode, TitleMenu, WorkspaceSplitDirection,
 };
 
 impl NyaTermApp {
@@ -173,6 +173,9 @@ impl NyaTermApp {
             TitleMenuCommand::ToggleLineNumbers => self.toggle_terminal_line_numbers(cx),
             TitleMenuCommand::ToggleTimestamps => self.toggle_terminal_timestamps(cx),
             TitleMenuCommand::SmartSplit(mode) => self.apply_smart_split(*mode, cx),
+            TitleMenuCommand::SplitWorkspace(direction) => {
+                self.split_workspace_with_duplicate(*direction, window, cx)
+            }
             TitleMenuCommand::NavigatePane(direction) => {
                 self.navigate_terminal_pane(*direction, window, cx)
             }
@@ -609,16 +612,20 @@ impl NyaTermApp {
                 .icon("icons/view-grid.svg")
                 .disabled(self.session.session_order_len() < 2)
                 .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Auto)),
-            TitleMenuDefinition::action(t!("menu.tileHorizontally"))
+            TitleMenuDefinition::action(t!("tabCtx.splitHorizontal"))
                 .icon("icons/menu/horizontal.svg")
                 .shortcut(self.display_shortcut_for("workspace.tileHorizontal", "Ctrl+Alt+B"))
-                .disabled(self.session.session_order_len() < 2)
-                .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Horizontal)),
-            TitleMenuDefinition::action(t!("menu.tileVertically"))
+                .disabled(self.session.active_id().is_none())
+                .command(TitleMenuCommand::SplitWorkspace(
+                    WorkspaceSplitDirection::Horizontal,
+                )),
+            TitleMenuDefinition::action(t!("tabCtx.splitVertical"))
                 .icon("icons/menu/vertical.svg")
                 .shortcut(self.display_shortcut_for("workspace.tileVertical", "Ctrl+Alt+V"))
-                .disabled(self.session.session_order_len() < 2)
-                .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Vertical)),
+                .disabled(self.session.active_id().is_none())
+                .command(TitleMenuCommand::SplitWorkspace(
+                    WorkspaceSplitDirection::Vertical,
+                )),
             TitleMenuDefinition::separator(),
             TitleMenuDefinition::action(t!("menu.focusPaneLeft"))
                 .shortcut(self.display_shortcut_for("workspace.paneLeft", "Ctrl+Alt+H"))

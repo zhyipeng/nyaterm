@@ -709,7 +709,7 @@ pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 47] = [
         "ctrl+alt+b",
         "meta+alt+b",
         Supported,
-        "Tiles open tabs from top to bottom."
+        "Duplicates the active session into a pane below."
     ),
     shortcut!(
         TileVertical,
@@ -720,7 +720,7 @@ pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 47] = [
         "ctrl+alt+v",
         "meta+alt+v",
         Supported,
-        "Tiles open tabs side by side."
+        "Duplicates the active session into a pane to the right."
     ),
     shortcut!(
         NavigatePaneLeft,

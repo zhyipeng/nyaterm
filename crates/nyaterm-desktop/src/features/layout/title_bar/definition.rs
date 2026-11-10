@@ -2,7 +2,9 @@ use gpui::{Action, Context, SharedString};
 use nyaterm_ui::NyaMenuItem;
 
 use crate::features::NyaTermApp;
-use crate::models::{HeaderStatusMode, PaneNavigationDirection, SmartSplitMode};
+use crate::models::{
+    HeaderStatusMode, PaneNavigationDirection, SmartSplitMode, WorkspaceSplitDirection,
+};
 use crate::shortcuts;
 
 /// Commands contain identifiers, never captured window state or presentation callbacks.
@@ -41,6 +43,7 @@ pub(crate) enum TitleMenuCommand {
     ToggleLineNumbers,
     ToggleTimestamps,
     SmartSplit(SmartSplitMode),
+    SplitWorkspace(WorkspaceSplitDirection),
     NavigatePane(PaneNavigationDirection),
     ManageSyncGroups,
     OpenSettings,
