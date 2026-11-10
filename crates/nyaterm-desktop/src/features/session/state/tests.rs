@@ -2790,3 +2790,81 @@ fn independent_rdp_instances_can_reference_the_same_saved_connection() {
         assert!(app.session.has_session("rdp-three"));
     });
 }
+
+#[test]
+fn directory_display_name_keeps_the_last_segment_for_posix_and_windows_paths() {
+    use super::catalog::directory_display_name;
+
+    assert_eq!(directory_display_name("/srv/app").as_deref(), Some("app"));
+    assert_eq!(
+        directory_display_name("/home/user/project/").as_deref(),
+        Some("project")
+    );
+    assert_eq!(directory_display_name("/").as_deref(), Some("/"));
+    assert_eq!(directory_display_name("///").as_deref(), Some("///"));
+    assert_eq!(
+        directory_display_name("C:\\Users\\me\\repo").as_deref(),
+        Some("repo")
+    );
+    assert_eq!(directory_display_name("C:\\").as_deref(), Some("C:"));
+    assert_eq!(
+        directory_display_name("\\\\server\\share\\folder").as_deref(),
+        Some("folder")
+    );
+    assert_eq!(
+        directory_display_name("\\\\wsl.localhost\\Ubuntu\\home\\me").as_deref(),
+        Some("me")
+    );
+    assert_eq!(directory_display_name("   "), None);
+    assert_eq!(directory_display_name(""), None);
+}
+
+#[test]
+fn tab_title_appends_the_current_directory_to_the_connection_name() {
+    let test_dir = TestConfigDir::new("nyaterm-session-tab-title");
+    let cx = TestAppContext::single();
+    let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let mut sessions = session_state(&cx, test_dir.path());
+    sessions.register_session_metadata("session-title", session_metadata("Deploy box", None));
+
+    assert_eq!(
+        sessions.tab_title("session-title").as_deref(),
+        Some("Deploy box")
+    );
+
+    sessions.update_cwd("session-title", "/srv/releases/app".to_string());
+    assert_eq!(
+        sessions.tab_title("session-title").as_deref(),
+        Some("Deploy box | app")
+    );
+
+    sessions.update_cwd("session-title", "/".to_string());
+    assert_eq!(
+        sessions.tab_title("session-title").as_deref(),
+        Some("Deploy box | /")
+    );
+
+    // A custom rename replaces the connection name but still gets the directory.
+    sessions.update_cwd("session-title", "/srv/releases/app".to_string());
+    sessions.set_custom_name("session-title".to_string(), "Production".to_string());
+    assert_eq!(
+        sessions.tab_title("session-title").as_deref(),
+        Some("Production | app")
+    );
+}
+
+#[test]
+fn tab_title_keeps_a_shell_dynamic_title_without_duplicating_the_directory() {
+    let test_dir = TestConfigDir::new("nyaterm-session-tab-title-dynamic");
+    let cx = TestAppContext::single();
+    let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let mut sessions = session_state(&cx, test_dir.path());
+    sessions.register_session_metadata("session-title", session_metadata("Deploy box", None));
+    sessions.update_cwd("session-title", "/srv/releases/app".to_string());
+
+    sessions.set_dynamic_title("session-title", Some("user@host: ~/app".to_string()));
+    assert_eq!(
+        sessions.tab_title("session-title").as_deref(),
+        Some("user@host: ~/app")
+    );
+}

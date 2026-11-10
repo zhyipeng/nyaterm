@@ -754,6 +754,28 @@ impl SessionFeatureState {
             .map(ToOwned::to_owned)
             .or_else(|| self.session_info(session_id).map(|session| session.name))
     }
+    /// Tab-strip label: the display name plus the current directory's basename
+    /// (`name | dir`) whenever the session reports a working directory.
+    ///
+    /// A custom rename wins over the connection name. An OSC dynamic title is
+    /// rendered as-is because shells already include the working directory in
+    /// it, so appending the cwd there would duplicate the same information.
+    pub(in crate::features) fn tab_title(&self, session_id: &str) -> Option<String> {
+        let has_dynamic_title = self
+            .dynamic_title(session_id)
+            .is_some_and(|title| !title.trim().is_empty());
+        let has_custom_name = self
+            .custom_name(session_id)
+            .is_some_and(|name| !name.trim().is_empty());
+        let display_name = self.display_name(session_id)?;
+        if has_dynamic_title && !has_custom_name {
+            return Some(display_name);
+        }
+        let Some(directory) = self.cwd(session_id).and_then(directory_display_name) else {
+            return Some(display_name);
+        };
+        Some(format!("{display_name} | {directory}"))
+    }
     pub(in crate::features) fn endpoint(&self, session_id: &str) -> Option<String> {
         let metadata = self.metadata(session_id)?;
         match &metadata.launch_config {
@@ -1002,4 +1024,23 @@ impl SessionFeatureState {
             self.locked_tabs.insert(new_root.to_string());
         }
     }
+}
+
+/// Last path segment of a shell working directory, for the tab strip.
+///
+/// Handles POSIX (`/srv/app`), Windows (`C:\\Users\\me`), UNC
+/// (`\\\\server\\share`) and WSL (`\\\\wsl.localhost\\Ubuntu\\home\\me`) paths
+/// without assuming the host platform, and keeps a separator-only path intact
+/// so a root directory still reads as `/` or `C:\\`.
+pub(super) fn directory_display_name(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let body = trimmed.trim_end_matches(['/', '\\']);
+    if body.is_empty() {
+        return Some(trimmed.to_string());
+    }
+    let last = body.rsplit(['/', '\\']).next().unwrap_or(body);
+    Some(last.to_string())
 }

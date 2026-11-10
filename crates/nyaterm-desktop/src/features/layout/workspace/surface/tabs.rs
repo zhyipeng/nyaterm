@@ -515,7 +515,11 @@ impl NyaTermApp {
             .map(|root| root.session_ids())
             .unwrap_or_else(|| vec![session.id.clone()]);
         let is_disconnected = leaf_ids.iter().any(|id| self.session.is_disconnected(id));
-        let tab_title = truncate_preview(&display_name, 28);
+        let tab_title_text = self
+            .session
+            .tab_title(&session.id)
+            .unwrap_or_else(|| display_name.clone());
+        let tab_title = truncate_preview(&tab_title_text, 28);
         let has_unread = leaf_ids
             .iter()
             .any(|id| self.terminal.session_has_unread(id));

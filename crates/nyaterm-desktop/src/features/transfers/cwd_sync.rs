@@ -143,6 +143,11 @@ impl NyaTermApp {
                     }
                 });
         let changed = self.session.update_cwd(session_id, cwd);
+        if changed {
+            // The tab strip renders the working directory's basename, so a
+            // background tab also needs a repaint when it reports a new cwd.
+            cx.notify();
+        }
         if !changed || equivalent || self.session.active_id() != Some(session_id) {
             return false;
         }
