@@ -145,6 +145,9 @@ pub(crate) enum QuickSwitchItem {
         active: bool,
         /// Original endpoint, separate from display text for structured search.
         endpoint: Option<(String, u16)>,
+        /// Live shell working directory, kept apart from the display text so a
+        /// path fragment still matches after the title/subtitle are truncated.
+        cwd: Option<String>,
     },
     Connection {
         connection: Box<SavedConnection>,
@@ -192,8 +195,12 @@ impl QuickSwitchItem {
                 id,
                 title,
                 subtitle,
+                cwd,
                 ..
-            } => format!("{title} {subtitle} {id}"),
+            } => format!(
+                "{title} {subtitle} {id} {}",
+                cwd.as_deref().unwrap_or_default()
+            ),
             Self::Connection {
                 connection,
                 title,

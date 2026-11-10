@@ -24,6 +24,7 @@ in `docs-site/src/data/changelogData.ts`; update both locations when preparing a
 - **terminal:** Split panes by duplicating the active session instead of tiling every open tab.
 - **settings:** Offer to remove a conflicting shortcut binding when the same capture is confirmed again, and support explicitly unbound shortcuts.
 - **terminal:** Show the current working directory's name in workspace tab titles after the connection name.
+- **terminal:** Mirror the working directory in Quick Switch session titles, show its full path in the subtitle, and match any path fragment when filtering.
 - **cloud-sync:** Compress local replica storage, reclaim free database pages, and remove the sync-version selector.
 - **ui:** Apply theme colors to the lock screen, input surfaces, and sync-group controls; refresh security icons and distinguish default RDP/VNC icons.
 - **tunnels:** Move tunnel-group batch actions into the overflow menu.

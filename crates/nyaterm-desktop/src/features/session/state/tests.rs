@@ -2868,3 +2868,33 @@ fn tab_title_keeps_a_shell_dynamic_title_without_duplicating_the_directory() {
         Some("user@host: ~/app")
     );
 }
+
+#[test]
+fn quick_switch_session_shows_tab_style_title_and_full_directory() {
+    use crate::models::QuickSwitchItem;
+
+    let root = TestConfigDir::new("nyaterm-quick-switch-cwd");
+    let mut cx = TestAppContext::single();
+    let _cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let app = app_with_visible_local_session(&mut cx, root.path(), "source");
+    app.update(&mut cx, |app, cx| {
+        app.session
+            .update_cwd("source", "/srv/releases/app".to_string());
+        cx.notify();
+        let item = app
+            .quick_switch_items()
+            .into_iter()
+            .find(|item| item.id() == "session:source")
+            .expect("session quick switch item");
+        let QuickSwitchItem::Session {
+            title, subtitle, ..
+        } = &item
+        else {
+            panic!("expected a session item");
+        };
+        // Title mirrors the tab strip (`name | dir`); subtitle keeps the full
+        // live directory so it can be read and filtered.
+        assert_eq!(title, "Local session | app");
+        assert!(subtitle.contains("/srv/releases/app"));
+    });
+}

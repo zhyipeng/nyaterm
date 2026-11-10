@@ -136,16 +136,23 @@ impl NyaTermApp {
             .map(|id| id.layout_key());
         let mut session_items = Vec::new();
         for session in &sessions {
-            let title = self.session.display_name_by_info(session);
+            // Mirror the tab-strip label (`name | dir`) so the switcher and the
+            // tabs agree, then keep the full live directory in the subtitle for
+            // disambiguation and path search.
+            let title = self
+                .session
+                .tab_title(&session.id)
+                .unwrap_or_else(|| self.session.display_name_by_info(session));
             let active = active_tab.as_deref() == Some(session.id.as_str());
+            let cwd = self.session.cwd(&session.id).map(str::to_owned);
             let mut subtitle = format!(
                 "{} - {}",
                 session_kind_label(session.kind),
                 short_id(&session.id)
             );
-            if let Some(path) = session.working_dir.as_ref() {
+            if let Some(path) = cwd.as_deref() {
                 subtitle.push_str(" - ");
-                subtitle.push_str(&path.display().to_string());
+                subtitle.push_str(path);
             }
             session_items.push(QuickSwitchItem::Session {
                 id: session.id.clone(),
@@ -162,6 +169,7 @@ impl NyaTermApp {
                     }
                     .map(|(host, port)| (host.clone(), port))
                 }),
+                cwd,
             });
         }
 
@@ -175,6 +183,7 @@ impl NyaTermApp {
                             title: document.name,
                             subtitle: document.remote_path,
                             endpoint: None,
+                            cwd: None,
                         });
                     }
                 }
@@ -185,6 +194,7 @@ impl NyaTermApp {
                         title: t!("fileManager.tabTitle").to_string(),
                         subtitle: id,
                         endpoint: None,
+                        cwd: None,
                     });
                 }
                 crate::models::WorkspaceTabId::Settings => {
@@ -194,6 +204,7 @@ impl NyaTermApp {
                         title: t!("settings.title").to_string(),
                         subtitle: t!("settings.title").to_string(),
                         endpoint: None,
+                        cwd: None,
                     });
                 }
                 crate::models::WorkspaceTabId::Session(_) => {}
@@ -393,6 +404,7 @@ mod tests {
             subtitle,
             active: false,
             endpoint,
+            cwd: None,
         }
     }
 

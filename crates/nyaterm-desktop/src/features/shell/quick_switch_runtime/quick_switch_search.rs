@@ -145,7 +145,12 @@ fn score_term(item: &QuickSwitchItem, term: &SearchTerm, fuzzy: Option<u32>) -> 
             let address_score = endpoint
                 .map(|(host, _)| match_string(&host.to_lowercase(), query, 950, 800, 650))
                 .unwrap_or(0);
-            address_score.max(match_string(&title, query, 600, 550, 500))
+            let cwd_score = item_cwd(item)
+                .map(|cwd| u32::from(cwd.to_lowercase().contains(query)) * 520)
+                .unwrap_or(0);
+            address_score
+                .max(match_string(&title, query, 600, 550, 500))
+                .max(cwd_score)
         }
         SearchTerm::Numeric(query) => {
             let name_score = match_string(&title, query, 1000, 850, 700);
@@ -164,7 +169,10 @@ fn score_term(item: &QuickSwitchItem, term: &SearchTerm, fuzzy: Option<u32>) -> 
                     host_score.max(u32::from(query.parse::<u16>().ok() == Some(port)) * 720)
                 })
                 .unwrap_or(0);
-            name_score.max(endpoint_score)
+            let cwd_score = item_cwd(item)
+                .map(|cwd| u32::from(cwd.to_lowercase().contains(query)) * 540)
+                .unwrap_or(0);
+            name_score.max(endpoint_score).max(cwd_score)
         }
         SearchTerm::Text(query) => {
             let name_score = match_string(&title, query, 1000, 850, 700);
@@ -187,6 +195,11 @@ fn score_term(item: &QuickSwitchItem, term: &SearchTerm, fuzzy: Option<u32>) -> 
                 })
                 .unwrap_or(0);
             let subtitle_score = u32::from(item.subtitle().to_lowercase().contains(query)) * 180;
+            // Any fragment of the live working directory matches, so paths with
+            // nested segments are reachable even when the title is truncated.
+            let cwd_score = item_cwd(item)
+                .map(|cwd| match_string(&cwd.to_lowercase(), query, 780, 720, 620))
+                .unwrap_or(0);
             let detail_score = match item {
                 QuickSwitchItem::Connection { connection, .. } => {
                     u32::from(
@@ -214,6 +227,7 @@ fn score_term(item: &QuickSwitchItem, term: &SearchTerm, fuzzy: Option<u32>) -> 
             name_score
                 .max(host_score)
                 .max(subtitle_score)
+                .max(cwd_score)
                 .max(detail_score)
                 .max(fuzzy_score)
         }
@@ -248,6 +262,13 @@ fn item_endpoint(item: &QuickSwitchItem) -> Option<(&str, u16)> {
     }
 }
 
+fn item_cwd(item: &QuickSwitchItem) -> Option<&str> {
+    match item {
+        QuickSwitchItem::Session { cwd, .. } => cwd.as_deref(),
+        QuickSwitchItem::Connection { .. } | QuickSwitchItem::Pending { .. } => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::filter_quick_switch_items;
@@ -260,7 +281,16 @@ mod tests {
             subtitle: "SSH - abc123".into(),
             active: false,
             endpoint: host.map(|host| (host.into(), port)),
+            cwd: None,
         }
+    }
+
+    fn session_in_dir(title: &str, host: Option<&str>, port: u16, cwd: &str) -> QuickSwitchItem {
+        let mut item = session(title, host, port);
+        if let QuickSwitchItem::Session { cwd: slot, .. } = &mut item {
+            *slot = Some(cwd.into());
+        }
+        item
     }
 
     fn titles(items: Vec<QuickSwitchItem>, query: &str) -> Vec<String> {
@@ -368,5 +398,28 @@ mod tests {
             ),
             ["ipv6"]
         );
+    }
+
+    #[test]
+    fn any_working_directory_fragment_matches_a_session() {
+        let items = vec![
+            session_in_dir("deploy", Some("10.0.0.1"), 22, "/srv/releases/app"),
+            session_in_dir("web", Some("10.0.0.2"), 22, "/var/www/html"),
+        ];
+
+        assert_eq!(titles(items.clone(), "releases"), ["deploy"]);
+        assert_eq!(titles(items.clone(), "app"), ["deploy"]);
+        assert_eq!(titles(items.clone(), "www"), ["web"]);
+        // A mixed-case query still matches a lowercased path fragment.
+        assert_eq!(titles(items, "HTML"), ["web"]);
+    }
+
+    #[test]
+    fn numeric_directory_fragment_matches_without_mixing_other_fields() {
+        let items = vec![
+            session_in_dir("build", Some("10.0.0.1"), 22, "/work/job2028/logs"),
+            session_in_dir("other", Some("10.0.0.2"), 22, "/work/plain"),
+        ];
+        assert_eq!(titles(items, "2028"), ["build"]);
     }
 }
