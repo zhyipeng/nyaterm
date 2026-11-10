@@ -7,6 +7,9 @@ use std::collections::HashMap;
 pub(super) struct KeybindingSettingsState {
     pub(super) recording_id: Option<crate::shortcuts::ShortcutId>,
     pub(super) pending_binding: Option<crate::shortcuts::ShortcutBinding>,
+    /// Shortcut whose conflict was already reported, so the next confirm can
+    /// offer to remove the conflicting binding instead of repeating the notice.
+    pub(super) conflict_confirmation: Option<crate::shortcuts::ShortcutId>,
     pub(super) search_draft: String,
     pub(super) focus: FocusHandle,
 }
@@ -45,15 +48,28 @@ impl SettingsFeatureState {
     ) {
         self.keybindings.recording_id = Some(shortcut_id);
         self.keybindings.pending_binding = None;
+        self.keybindings.conflict_confirmation = None;
     }
     pub(in crate::features) fn cancel_keybinding_recording(&mut self) {
         self.keybindings.recording_id = None;
         self.keybindings.pending_binding = None;
+        self.keybindings.conflict_confirmation = None;
     }
     pub(in crate::features) fn keybinding_recording_id(
         &self,
     ) -> Option<crate::shortcuts::ShortcutId> {
         self.keybindings.recording_id
+    }
+    pub(in crate::features) fn keybinding_conflict_confirmation(
+        &self,
+    ) -> Option<crate::shortcuts::ShortcutId> {
+        self.keybindings.conflict_confirmation
+    }
+    pub(in crate::features) fn set_keybinding_conflict_confirmation(
+        &mut self,
+        shortcut_id: Option<crate::shortcuts::ShortcutId>,
+    ) {
+        self.keybindings.conflict_confirmation = shortcut_id;
     }
     pub(in crate::features) fn pending_keybinding(
         &self,
@@ -64,6 +80,9 @@ impl SettingsFeatureState {
         &mut self,
         binding: Option<crate::shortcuts::ShortcutBinding>,
     ) {
+        if self.keybindings.pending_binding != binding {
+            self.keybindings.conflict_confirmation = None;
+        }
         self.keybindings.pending_binding = binding;
     }
     pub(in crate::features) fn finish_keybinding_recording(&mut self) {

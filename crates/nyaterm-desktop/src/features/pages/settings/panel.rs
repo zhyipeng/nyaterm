@@ -1710,9 +1710,12 @@ impl SettingsPanel {
     pub(in crate::features) fn handle_keybinding_key_down(
         &mut self,
         event: &KeyDownEvent,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.with_app(cx, |app, cx| app.handle_keybinding_key_down(event, cx));
+        self.with_app(cx, |app, cx| {
+            app.handle_keybinding_key_down(event, window, cx);
+        });
     }
 
     pub(in crate::features) fn toggle_search_engine_menu(
@@ -1884,6 +1887,14 @@ impl SettingsPanel {
     ) {
         self.with_app(cx, |app, cx| app.reset_keybinding(shortcut_id, cx));
     }
+
+    pub(in crate::features) fn confirm_keybinding_recording(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.with_app(cx, |app, cx| app.confirm_keybinding_recording(window, cx));
+    }
 }
 
 macro_rules! forward_app_action {
@@ -1903,7 +1914,6 @@ forward_app_action!(
     cancel_github_gist_auth,
     cancel_keybinding_recording,
     clear_background_image,
-    confirm_keybinding_recording,
     copy_github_gist_user_code,
     refresh_ai_agents,
     refresh_codex_account,

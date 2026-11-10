@@ -44,8 +44,8 @@ impl SettingsPanel {
             .flex_col()
             .gap_3()
             .track_focus(self.settings.keybinding_focus())
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                this.handle_keybinding_key_down(event, cx);
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                this.handle_keybinding_key_down(event, window, cx);
             }))
             .child(
                 div()
@@ -198,13 +198,22 @@ impl SettingsPanel {
         } else {
             rgb(palette.border)
         };
+        let is_unbound = !is_recording && effective_keys.trim().is_empty();
         let mut key_display = div()
             .flex()
             .flex_wrap()
             .items_center()
             .justify_end()
             .gap_1();
-        if let Some(key_strokes) = key_strokes {
+        if is_unbound {
+            key_display = key_display.child(
+                div()
+                    .text_size(px(10.))
+                    .font_weight(FontWeight(600.))
+                    .text_color(key_color)
+                    .child(t!("settings.keybindingsUnbound")),
+            );
+        } else if let Some(key_strokes) = key_strokes {
             for (index, stroke) in key_strokes.into_iter().enumerate() {
                 if index > 0 {
                     key_display = key_display.child(
@@ -311,8 +320,8 @@ impl SettingsPanel {
                             palette,
                             format!("keybinding-save-{}", shortcut.id.as_str()),
                             t!("common.confirm"),
-                            cx.listener(|this, _, _, cx| {
-                                this.confirm_keybinding_recording(cx);
+                            cx.listener(|this, _, window, cx| {
+                                this.confirm_keybinding_recording(window, cx);
                             }),
                         ))
                         .child(small_button(

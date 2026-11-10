@@ -44,7 +44,11 @@ impl NyaTermApp {
         cx.notify();
     }
 
-    pub(in crate::features) fn confirm_keybinding_recording(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::features) fn confirm_keybinding_recording(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(shortcut_id) = self.settings.keybinding_recording_id() else {
             self.shell
                 .set_status("no shortcut recording is active".to_string());
@@ -58,13 +62,32 @@ impl NyaTermApp {
             return;
         };
 
-        self.settings.finish_keybinding_recording();
         let keys = binding.canonical();
-        if let Some(conflict) = self.keybinding_conflict_label(&keys, shortcut_id.as_str()) {
-            self.settings.begin_keybinding_recording(shortcut_id);
-            self.settings.set_pending_keybinding(Some(binding));
-            let message =
-                rust_i18n::t!("settings.shortcutConflictMessage", shortcut = conflict).to_string();
+        if let Some(conflict_id) = crate::shortcuts::conflicting_shortcut(
+            &binding,
+            shortcut_id,
+            &self.settings.summary().keybindings,
+        ) {
+            if self.settings.keybinding_conflict_confirmation() == Some(shortcut_id) {
+                self.prompt_keybinding_conflict_removal(
+                    shortcut_id,
+                    conflict_id,
+                    binding,
+                    window,
+                    cx,
+                );
+                return;
+            }
+            self.settings
+                .set_keybinding_conflict_confirmation(Some(shortcut_id));
+            let conflict = self
+                .keybinding_conflict_label(&keys, shortcut_id.as_str())
+                .unwrap_or_else(|| conflict_id.as_str().to_string());
+            let message = format!(
+                "{} {}",
+                rust_i18n::t!("settings.shortcutConflictMessage", shortcut = conflict),
+                rust_i18n::t!("settings.shortcutConflictRetryHint")
+            );
             self.shell.set_status(message.clone());
             self.notify_operation(
                 "shortcut-conflict",
@@ -75,11 +98,72 @@ impl NyaTermApp {
             cx.notify();
             return;
         }
+
+        self.settings.set_keybinding_conflict_confirmation(None);
         let mut keybindings = self.settings.summary().keybindings.clone();
         if crate::shortcuts::is_default_binding(shortcut_id, &binding) {
             keybindings.remove(shortcut_id.as_str());
         } else {
             keybindings.insert(shortcut_id.as_str().to_string(), keys);
+        }
+        self.save_keybindings(
+            keybindings,
+            format!("shortcut {} saved", shortcut_id.as_str()),
+            cx,
+        );
+    }
+
+    /// Ask before removing the other shortcut that owns the recorded chord.
+    fn prompt_keybinding_conflict_removal(
+        &mut self,
+        shortcut_id: crate::shortcuts::ShortcutId,
+        conflict_id: crate::shortcuts::ShortcutId,
+        binding: crate::shortcuts::ShortcutBinding,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let conflict_name = crate::shortcuts::SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == conflict_id)
+            .map(|definition| rust_i18n::t!(definition.label_key).into_owned())
+            .unwrap_or_else(|| conflict_id.as_str().to_string());
+        let title = rust_i18n::t!("settings.keybindingsConflictDeleteTitle").to_string();
+        let message = rust_i18n::t!(
+            "settings.keybindingsConflictDeleteMessage",
+            name = conflict_name
+        )
+        .to_string();
+        let action = rust_i18n::t!("settings.keybindingsConflictDeleteAction").to_string();
+        self.open_confirm_dialog(
+            (title, message, action, true, move |this, _window, cx| {
+                this.apply_keybinding_conflict_removal(
+                    shortcut_id,
+                    conflict_id,
+                    binding.clone(),
+                    cx,
+                );
+                true
+            }),
+            window,
+            cx,
+        );
+    }
+
+    fn apply_keybinding_conflict_removal(
+        &mut self,
+        shortcut_id: crate::shortcuts::ShortcutId,
+        conflict_id: crate::shortcuts::ShortcutId,
+        binding: crate::shortcuts::ShortcutBinding,
+        cx: &mut Context<Self>,
+    ) {
+        let mut keybindings = self.settings.summary().keybindings.clone();
+        // An empty override disables the conflicting shortcut without falling
+        // back to a default that would reclaim the same chord.
+        keybindings.insert(conflict_id.as_str().to_string(), String::new());
+        if crate::shortcuts::is_default_binding(shortcut_id, &binding) {
+            keybindings.remove(shortcut_id.as_str());
+        } else {
+            keybindings.insert(shortcut_id.as_str().to_string(), binding.canonical());
         }
         self.save_keybindings(
             keybindings,
@@ -130,10 +214,11 @@ impl NyaTermApp {
     pub(in crate::features) fn handle_keybinding_key_down(
         &mut self,
         event: &KeyDownEvent,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         cx.stop_propagation();
-        self.record_keybinding_keystroke(&event.keystroke, cx);
+        self.record_keybinding_keystroke(&event.keystroke, window, cx);
     }
 
     /// Feed one keystroke to the active shortcut recording. Repeating the same
@@ -142,6 +227,7 @@ impl NyaTermApp {
     pub(in crate::features) fn record_keybinding_keystroke(
         &mut self,
         keystroke: &gpui::Keystroke,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let Some(recording_id) = self.settings.keybinding_recording_id() else {
@@ -153,7 +239,7 @@ impl NyaTermApp {
                 return;
             }
             "enter" if self.settings.pending_keybinding().is_some() => {
-                self.confirm_keybinding_recording(cx);
+                self.confirm_keybinding_recording(window, cx);
                 return;
             }
             _ => {}
@@ -221,6 +307,8 @@ mod tests {
 
     use crate::features::NyaTermApp;
     use crate::features::test_support::app_with_visible_local_session;
+    use crate::shortcuts::{ShortcutBinding, ShortcutId};
+    use nyaterm_ui::NyaDialogWindowExt as _;
 
     actions!(keybinding_recording_tests, [BoundToCtrlW]);
 
@@ -237,8 +325,10 @@ mod tests {
                 .size_full()
                 .track_focus(self.app.read(cx).settings.keybinding_focus())
                 .on_action(move |_: &BoundToCtrlW, _, _| fired.set(fired.get() + 1))
-                .on_key_down(move |event, _, cx| {
-                    app.update(cx, |app, cx| app.handle_keybinding_key_down(event, cx));
+                .on_key_down(move |event, window, cx| {
+                    app.update(cx, |app, cx| {
+                        app.handle_keybinding_key_down(event, window, cx)
+                    });
                 })
         }
     }
@@ -293,5 +383,100 @@ mod tests {
                 Some("ctrl+w".to_string())
             );
         });
+    }
+
+    fn new_session_default_binding() -> ShortcutBinding {
+        let keys = crate::shortcuts::SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == ShortcutId::NewSession)
+            .expect("new session shortcut must be registered")
+            .default_keys();
+        ShortcutBinding::parse(&keys).expect("registry defaults must be valid")
+    }
+
+    fn conflict_host<'a>(
+        cx: &'a mut TestAppContext,
+        app: &Entity<NyaTermApp>,
+    ) -> &'a mut gpui::VisualTestContext {
+        // `nya_root` needs the gpui-component globals (`WindowState` among
+        // them) that the component theme bridge installs on first use.
+        app.update(cx, |app, cx| app.sync_component_theme(cx));
+        let host_app = app.clone();
+        let (_, visual) = cx.add_window_view(move |window, cx| {
+            let host = cx.new(|_| RecorderHost {
+                app: host_app,
+                fired: Rc::new(Cell::new(0)),
+            });
+            nyaterm_ui::nya_root(host, window, cx)
+        });
+        visual
+    }
+
+    #[test]
+    fn repeated_confirm_offers_to_remove_the_conflicting_shortcut() {
+        let mut cx = TestAppContext::single();
+        let _cleanup = crate::test_support::TestAppCleanup::new(&cx);
+        let root = TestTempDir::new("nyaterm-keybinding-conflict-confirm");
+        let app = app_with_visible_local_session(&mut cx, root.path(), "local");
+        let visual = conflict_host(&mut cx, &app);
+
+        visual.update(|window, cx| {
+            app.update(cx, |app, cx| {
+                app.settings
+                    .begin_keybinding_recording(ShortcutId::TerminalFind);
+                app.settings
+                    .set_pending_keybinding(Some(new_session_default_binding()));
+                app.confirm_keybinding_recording(window, cx);
+                assert_eq!(
+                    app.settings.keybinding_conflict_confirmation(),
+                    Some(ShortcutId::TerminalFind)
+                );
+                assert!(app.settings.summary().keybindings.is_empty());
+            });
+        });
+        assert!(!visual.update(|window, cx| window.has_active_nya_dialog(cx)));
+
+        // Confirming the same conflicting chord again opens the removal prompt
+        // instead of repeating the notice.
+        visual.update(|window, cx| {
+            app.update(cx, |app, cx| app.confirm_keybinding_recording(window, cx));
+        });
+        assert!(visual.update(|window, cx| window.has_active_nya_dialog(cx)));
+        visual.update(|window, cx| window.close_all_nya_dialogs(cx));
+    }
+
+    #[test]
+    fn conflict_removal_disables_the_other_shortcut_and_keeps_the_new_binding() {
+        let mut cx = TestAppContext::single();
+        let _cleanup = crate::test_support::TestAppCleanup::new(&cx);
+        let root = TestTempDir::new("nyaterm-keybinding-conflict-remove");
+        let app = app_with_visible_local_session(&mut cx, root.path(), "local");
+        let visual = conflict_host(&mut cx, &app);
+
+        visual.update(|_window, cx| {
+            app.update(cx, |app, cx| {
+                app.settings
+                    .begin_keybinding_recording(ShortcutId::TerminalFind);
+                app.apply_keybinding_conflict_removal(
+                    ShortcutId::TerminalFind,
+                    ShortcutId::NewSession,
+                    new_session_default_binding(),
+                    cx,
+                );
+            });
+        });
+
+        let keybindings =
+            visual.update(|_window, cx| app.read(cx).settings.summary().keybindings.clone());
+        assert_eq!(
+            keybindings.get("tab.newSession").map(String::as_str),
+            Some("")
+        );
+        let expected = new_session_default_binding().canonical();
+        assert_eq!(
+            keybindings.get("terminal.find").map(String::as_str),
+            Some(expected.as_str())
+        );
+        assert!(!visual.update(|window, cx| window.has_active_nya_dialog(cx)));
     }
 }

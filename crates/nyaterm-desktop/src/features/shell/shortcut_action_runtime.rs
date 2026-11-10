@@ -49,7 +49,7 @@ impl NyaTermApp {
                         if !this.settings.keybinding_focus().is_focused(window) {
                             return false;
                         }
-                        this.record_keybinding_keystroke(&event.keystroke, cx);
+                        this.record_keybinding_keystroke(&event.keystroke, window, cx);
                         return true;
                     }
                     let window_id = window.window_handle().window_id();

@@ -155,6 +155,7 @@ impl SettingsFeatureState {
             keybindings: KeybindingSettingsState {
                 recording_id: None,
                 pending_binding: None,
+                conflict_confirmation: None,
                 search_draft: String::new(),
                 focus: focus.keybindings,
             },

@@ -947,6 +947,11 @@ impl ResolvedKeymap {
         let mut accepted: Vec<(ShortcutId, ShortcutScope, ShortcutChord)> = Vec::new();
         for definition in SHORTCUT_REGISTRY {
             let binding = match overrides.get(definition.id.as_str()) {
+                Some(raw) if raw.trim().is_empty() => {
+                    // An explicitly emptied override disables the shortcut; it
+                    // must not fall back to its default or claim a chord.
+                    continue;
+                }
                 Some(raw) => match ShortcutBinding::parse(raw) {
                     Ok(binding) => binding,
                     Err(error) => {
@@ -1278,7 +1283,8 @@ pub(crate) fn shortcut_keys_for(id: &str, overrides: &HashMap<String, String>) -
         }
     }
     if let Some(raw) = overrides.get(id.as_str()) {
-        return Some(raw.clone());
+        // An emptied override means the shortcut was disabled on purpose.
+        return Some(raw.trim().to_string());
     }
     SHORTCUT_REGISTRY
         .iter()
@@ -1314,6 +1320,7 @@ pub(crate) fn conflicting_shortcut(
             continue;
         }
         let existing = match overrides.get(definition.id.as_str()) {
+            Some(raw) if raw.trim().is_empty() => None,
             Some(raw) => ShortcutBinding::parse(raw).ok(),
             None => Some(definition.default_binding()),
         };
@@ -1691,6 +1698,46 @@ mod tests {
             assert!(resolved.diagnostic(id).is_none(), "{}", id.as_str());
             assert!(resolved.shortcuts.iter().any(|shortcut| shortcut.id == id));
         }
+    }
+
+    #[test]
+    fn empty_override_disables_a_shortcut_without_claiming_its_chord() {
+        let new_session_default = SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == ShortcutId::NewSession)
+            .expect("new session shortcut must be registered")
+            .default_keys();
+        let mut overrides = HashMap::new();
+        overrides.insert("tab.newSession".to_string(), String::new());
+        overrides.insert("terminal.find".to_string(), new_session_default.clone());
+        let resolved = ResolvedKeymap::resolve(&overrides);
+
+        assert!(resolved.diagnostic(ShortcutId::NewSession).is_none());
+        assert!(
+            !resolved
+                .shortcuts
+                .iter()
+                .any(|shortcut| shortcut.id == ShortcutId::NewSession)
+        );
+        assert!(resolved.diagnostic(ShortcutId::TerminalFind).is_none());
+        assert!(
+            resolved
+                .shortcuts
+                .iter()
+                .any(|shortcut| shortcut.id == ShortcutId::TerminalFind)
+        );
+        assert_eq!(
+            crate::shortcuts::shortcut_keys_for("tab.newSession", &overrides),
+            Some(String::new())
+        );
+        assert!(
+            crate::shortcuts::conflicting_shortcut(
+                &ShortcutBinding::parse(&new_session_default).unwrap(),
+                ShortcutId::TerminalFind,
+                &overrides,
+            )
+            .is_none()
+        );
     }
 
     #[test]
