@@ -16,6 +16,7 @@ in `docs-site/src/data/changelogData.ts`; update both locations when preparing a
 ### Added
 
 - **terminal:** Add customizable shortcuts for tiling sessions top-to-bottom and side-by-side.
+- **terminal:** Add four-direction split-pane focus navigation with shortcuts and menu entries.
 - **assets:** Add multi-select batch editing for saved connections and full MobaXterm session import.
 
 ### Changed

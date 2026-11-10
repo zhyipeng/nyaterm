@@ -1,6 +1,6 @@
 //! Application tab routing over shared workspace tree contracts.
 pub(crate) use nyaterm_core::workspace_layout::tabs::{
-    TabDockEdge, TabDockZone, TerminalWindowNode,
+    PaneNavigationDirection, TabDockEdge, TabDockZone, TerminalWindowNode,
 };
 
 /// Typed routing at the boundary of the existing string-keyed layout algorithms.

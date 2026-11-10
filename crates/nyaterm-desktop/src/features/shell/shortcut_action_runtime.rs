@@ -1,17 +1,17 @@
 use gpui::{Context, Div, InteractiveElement, Stateful, Window};
 
 use crate::features::NyaTermApp;
-use crate::models::{NavItem, SmartSplitMode, StartupCommandAction};
+use crate::models::{NavItem, PaneNavigationDirection, SmartSplitMode, StartupCommandAction};
 use crate::shortcuts::{
     CloseTab, CopySelectedConnections, DuplicateSession, DuplicateSessionWithCommand, LockScreen,
-    ManageSyncGroups, MultiplexSsh, MultiplexSshWithCommand, NewLocalTerminal, NewSession, NextTab,
-    NextTerminalGroup, OpenChat, OpenNewSessionMenu, OpenSettings, PreviousTab,
-    PreviousTerminalGroup, QuickSwitch, RenameFile, ResetZoom, ShortcutId, ShortcutInvocation,
-    ShowAllCommands, ShowCommandSuggestions, SwitchToTab, TemporarySshLink, TerminalClear,
-    TerminalClearAll, TerminalCommandNext, TerminalCommandPrevious, TerminalCommandSelect,
-    TerminalCopy, TerminalFind, TerminalPaste, TerminalPasteSelected, TerminalSelectAll,
-    TileHorizontal, TileVertical, ToggleLeftSidebar, ToggleNativeFullscreen, TogglePaneFocus,
-    ToggleRecording, ToggleRightSidebar, ZoomIn, ZoomOut,
+    ManageSyncGroups, MultiplexSsh, MultiplexSshWithCommand, NavigatePaneDown, NavigatePaneLeft,
+    NavigatePaneRight, NavigatePaneUp, NewLocalTerminal, NewSession, NextTab, NextTerminalGroup,
+    OpenChat, OpenNewSessionMenu, OpenSettings, PreviousTab, PreviousTerminalGroup, QuickSwitch,
+    RenameFile, ResetZoom, ShortcutId, ShortcutInvocation, ShowAllCommands, ShowCommandSuggestions,
+    SwitchToTab, TemporarySshLink, TerminalClear, TerminalClearAll, TerminalCommandNext,
+    TerminalCommandPrevious, TerminalCommandSelect, TerminalCopy, TerminalFind, TerminalPaste,
+    TerminalPasteSelected, TerminalSelectAll, TileHorizontal, TileVertical, ToggleLeftSidebar,
+    ToggleNativeFullscreen, TogglePaneFocus, ToggleRecording, ToggleRightSidebar, ZoomIn, ZoomOut,
 };
 
 fn shortcut_interceptor_dispatches(id: ShortcutId) -> bool {
@@ -219,6 +219,18 @@ impl NyaTermApp {
             }
             ShortcutId::TileHorizontal => self.apply_smart_split(SmartSplitMode::Horizontal, cx),
             ShortcutId::TileVertical => self.apply_smart_split(SmartSplitMode::Vertical, cx),
+            ShortcutId::NavigatePaneLeft => {
+                self.navigate_terminal_pane(PaneNavigationDirection::Left, window, cx)
+            }
+            ShortcutId::NavigatePaneRight => {
+                self.navigate_terminal_pane(PaneNavigationDirection::Right, window, cx)
+            }
+            ShortcutId::NavigatePaneUp => {
+                self.navigate_terminal_pane(PaneNavigationDirection::Up, window, cx)
+            }
+            ShortcutId::NavigatePaneDown => {
+                self.navigate_terminal_pane(PaneNavigationDirection::Down, window, cx)
+            }
             ShortcutId::ToggleLeftSidebar => {
                 self.execute_title_menu_command(&TitleMenuCommand::ToggleLeftSidebar, window, cx)
             }
@@ -358,6 +370,10 @@ impl NyaTermApp {
             ))
             .on_action(direct_handler!(TileHorizontal, TileHorizontal))
             .on_action(direct_handler!(TileVertical, TileVertical))
+            .on_action(direct_handler!(NavigatePaneLeft, NavigatePaneLeft))
+            .on_action(direct_handler!(NavigatePaneRight, NavigatePaneRight))
+            .on_action(direct_handler!(NavigatePaneUp, NavigatePaneUp))
+            .on_action(direct_handler!(NavigatePaneDown, NavigatePaneDown))
             .on_action(direct_handler!(ToggleLeftSidebar, ToggleLeftSidebar))
             .on_action(direct_handler!(ToggleRightSidebar, ToggleRightSidebar))
             .on_action(direct_handler!(TogglePaneFocus, TogglePaneFocus))

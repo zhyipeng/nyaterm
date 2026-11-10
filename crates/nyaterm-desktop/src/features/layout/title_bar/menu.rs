@@ -9,8 +9,8 @@ use nyaterm_ui::{NyaAppMenuBar, NyaDialogWindowExt as _, NyaMenuItem};
 use super::definition::{TitleMenuCommand, TitleMenuDefinition, TitleMenuKind};
 use crate::features::NyaTermApp;
 use crate::models::{
-    ActivityBarEntry, ActivityBarZone, HeaderStatusMode, NavItem, PanelOpenMode, PanelSide,
-    SmartSplitMode, TitleMenu,
+    ActivityBarEntry, ActivityBarZone, HeaderStatusMode, NavItem, PaneNavigationDirection,
+    PanelOpenMode, PanelSide, SmartSplitMode, TitleMenu,
 };
 
 impl NyaTermApp {
@@ -173,6 +173,9 @@ impl NyaTermApp {
             TitleMenuCommand::ToggleLineNumbers => self.toggle_terminal_line_numbers(cx),
             TitleMenuCommand::ToggleTimestamps => self.toggle_terminal_timestamps(cx),
             TitleMenuCommand::SmartSplit(mode) => self.apply_smart_split(*mode, cx),
+            TitleMenuCommand::NavigatePane(direction) => {
+                self.navigate_terminal_pane(*direction, window, cx)
+            }
             TitleMenuCommand::ManageSyncGroups => self.open_sync_groups(window, cx),
             TitleMenuCommand::OpenSettings => {
                 self.open_page(NavItem::Settings, cx);
@@ -616,6 +619,29 @@ impl NyaTermApp {
                 .shortcut(self.display_shortcut_for("workspace.tileVertical", "Ctrl+Alt+V"))
                 .disabled(self.session.session_order_len() < 2)
                 .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Vertical)),
+            TitleMenuDefinition::separator(),
+            TitleMenuDefinition::action(t!("menu.focusPaneLeft"))
+                .shortcut(self.display_shortcut_for("workspace.paneLeft", "Ctrl+Alt+H"))
+                .disabled(self.session.session_order_len() < 2)
+                .command(TitleMenuCommand::NavigatePane(
+                    PaneNavigationDirection::Left,
+                )),
+            TitleMenuDefinition::action(t!("menu.focusPaneRight"))
+                .shortcut(self.display_shortcut_for("workspace.paneRight", "Ctrl+Alt+L"))
+                .disabled(self.session.session_order_len() < 2)
+                .command(TitleMenuCommand::NavigatePane(
+                    PaneNavigationDirection::Right,
+                )),
+            TitleMenuDefinition::action(t!("menu.focusPaneUp"))
+                .shortcut(self.display_shortcut_for("workspace.paneUp", "Ctrl+Alt+K"))
+                .disabled(self.session.session_order_len() < 2)
+                .command(TitleMenuCommand::NavigatePane(PaneNavigationDirection::Up)),
+            TitleMenuDefinition::action(t!("menu.focusPaneDown"))
+                .shortcut(self.display_shortcut_for("workspace.paneDown", "Ctrl+Alt+J"))
+                .disabled(self.session.session_order_len() < 2)
+                .command(TitleMenuCommand::NavigatePane(
+                    PaneNavigationDirection::Down,
+                )),
         ]
     }
 

@@ -47,6 +47,10 @@ pub(crate) enum ShortcutId {
     MultiplexSshWithCommand,
     TileHorizontal,
     TileVertical,
+    NavigatePaneLeft,
+    NavigatePaneRight,
+    NavigatePaneUp,
+    NavigatePaneDown,
     ToggleLeftSidebar,
     ToggleRightSidebar,
     TogglePaneFocus,
@@ -95,6 +99,10 @@ impl ShortcutId {
             Self::MultiplexSshWithCommand => "tab.multiplexSshWithCommand",
             Self::TileHorizontal => "workspace.tileHorizontal",
             Self::TileVertical => "workspace.tileVertical",
+            Self::NavigatePaneLeft => "workspace.paneLeft",
+            Self::NavigatePaneRight => "workspace.paneRight",
+            Self::NavigatePaneUp => "workspace.paneUp",
+            Self::NavigatePaneDown => "workspace.paneDown",
             Self::ToggleLeftSidebar => "view.toggleLeftSidebar",
             Self::ToggleRightSidebar => "view.toggleRightSidebar",
             Self::TogglePaneFocus => "view.togglePaneFocus",
@@ -383,7 +391,7 @@ macro_rules! shortcut {
     };
 }
 
-pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 43] = [
+pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 47] = [
     shortcut!(
         TerminalCopy,
         Terminal,
@@ -713,6 +721,50 @@ pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 43] = [
         "meta+alt+v",
         Supported,
         "Tiles open tabs side by side."
+    ),
+    shortcut!(
+        NavigatePaneLeft,
+        View,
+        "settings.shortcutLabels.navigatePaneLeft",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+h",
+        "meta+alt+left",
+        Supported,
+        "Focuses the split pane to the left."
+    ),
+    shortcut!(
+        NavigatePaneRight,
+        View,
+        "settings.shortcutLabels.navigatePaneRight",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+l",
+        "meta+alt+right",
+        Supported,
+        "Focuses the split pane to the right."
+    ),
+    shortcut!(
+        NavigatePaneUp,
+        View,
+        "settings.shortcutLabels.navigatePaneUp",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+k",
+        "meta+alt+up",
+        Supported,
+        "Focuses the split pane above."
+    ),
+    shortcut!(
+        NavigatePaneDown,
+        View,
+        "settings.shortcutLabels.navigatePaneDown",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+j",
+        "meta+alt+down",
+        Supported,
+        "Focuses the split pane below."
     ),
     shortcut!(
         ToggleLeftSidebar,
@@ -1193,6 +1245,10 @@ fn binding_for_action(
         ShortcutId::MultiplexSshWithCommand => binding!(MultiplexSshWithCommand),
         ShortcutId::TileHorizontal => binding!(TileHorizontal),
         ShortcutId::TileVertical => binding!(TileVertical),
+        ShortcutId::NavigatePaneLeft => binding!(NavigatePaneLeft),
+        ShortcutId::NavigatePaneRight => binding!(NavigatePaneRight),
+        ShortcutId::NavigatePaneUp => binding!(NavigatePaneUp),
+        ShortcutId::NavigatePaneDown => binding!(NavigatePaneDown),
         ShortcutId::ToggleLeftSidebar => binding!(ToggleLeftSidebar),
         ShortcutId::ToggleRightSidebar => binding!(ToggleRightSidebar),
         ShortcutId::TogglePaneFocus => binding!(TogglePaneFocus),
@@ -1477,7 +1533,7 @@ mod tests {
 
     #[test]
     fn registry_is_complete_unique_and_has_valid_platform_defaults() {
-        assert_eq!(SHORTCUT_REGISTRY.len(), 43);
+        assert_eq!(SHORTCUT_REGISTRY.len(), 47);
         let mut ids = HashSet::new();
         for definition in SHORTCUT_REGISTRY {
             assert!(ids.insert(definition.id));
@@ -1603,6 +1659,35 @@ mod tests {
 
         let resolved = ResolvedKeymap::resolve(&HashMap::new());
         for id in [ShortcutId::TileHorizontal, ShortcutId::TileVertical] {
+            assert!(resolved.diagnostic(id).is_none(), "{}", id.as_str());
+            assert!(resolved.shortcuts.iter().any(|shortcut| shortcut.id == id));
+        }
+    }
+
+    #[test]
+    fn pane_navigation_shortcuts_resolve_without_conflicts() {
+        let left = SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == ShortcutId::NavigatePaneLeft)
+            .expect("pane-left shortcut must be registered");
+        assert_eq!(
+            left.default_binding_for(ShortcutPlatform::Windows)
+                .canonical(),
+            "ctrl+alt+h"
+        );
+        assert_eq!(
+            left.default_binding_for(ShortcutPlatform::MacOs)
+                .canonical(),
+            "meta+alt+left"
+        );
+
+        let resolved = ResolvedKeymap::resolve(&HashMap::new());
+        for id in [
+            ShortcutId::NavigatePaneLeft,
+            ShortcutId::NavigatePaneRight,
+            ShortcutId::NavigatePaneUp,
+            ShortcutId::NavigatePaneDown,
+        ] {
             assert!(resolved.diagnostic(id).is_none(), "{}", id.as_str());
             assert!(resolved.shortcuts.iter().any(|shortcut| shortcut.id == id));
         }

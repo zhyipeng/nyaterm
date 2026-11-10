@@ -148,6 +148,32 @@ impl NyaTermApp {
         }
     }
 
+    /// Move focus to the split pane bordering the current one.
+    ///
+    /// Only splits on the navigation axis contribute a neighbour, matching the
+    /// directional movement of tiled editors: moving right never jumps into a
+    /// pane that is visually above or below the current one.
+    pub(in crate::features) fn navigate_terminal_pane(
+        &mut self,
+        direction: crate::models::PaneNavigationDirection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(root) = self.shell.terminal_window_tree() else {
+            return;
+        };
+        let Some(current) = self.current_terminal_group() else {
+            return;
+        };
+        let Some(target) = root.adjacent_leaf(&current, direction) else {
+            return;
+        };
+        if let Some((_, Some(tab))) = self.shell.terminal_group_tabs(&target) {
+            self.select_session(tab.clone(), cx);
+            self.focus_terminal_session(&tab, window, cx);
+        }
+    }
+
     /// Compatibility data is expanded only after both restoration sources have
     /// settled, so old outer-layout indexes still address their original tabs.
     pub(in crate::features) fn normalize_legacy_terminal_groups(&mut self) -> bool {

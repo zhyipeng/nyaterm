@@ -21,8 +21,11 @@ pub enum TerminalWindowNode {
 mod docking;
 mod groups;
 mod mutation;
+mod navigation;
 mod persistence;
 mod tree;
+
+pub use navigation::PaneNavigationDirection;
 
 /// Edge drop zones for tab docking (Tauri SplitEdgeDirection).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
