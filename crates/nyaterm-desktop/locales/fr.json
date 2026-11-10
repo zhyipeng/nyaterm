@@ -3189,6 +3189,8 @@
       "showAllCommands": "Afficher/masquer le panneau des commandes rapides",
       "switchTab": "Basculer vers l'onglet 1-9",
       "temporarySshLink": "Lien temporaire",
+      "tileHorizontal": "Diviser de haut en bas",
+      "tileVertical": "Diviser côte à côte",
       "toggleLeftSidebar": "Basculer la barre latérale gauche",
       "toggleRightSidebar": "Barre latérale droite",
       "zoomIn": "Zoom avant",

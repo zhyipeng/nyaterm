@@ -32,6 +32,8 @@ actions!(
         MultiplexSsh,
         DuplicateSessionWithCommand,
         MultiplexSshWithCommand,
+        TileHorizontal,
+        TileVertical,
         ToggleLeftSidebar,
         ToggleRightSidebar,
         TogglePaneFocus,

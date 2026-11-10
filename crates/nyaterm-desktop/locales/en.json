@@ -3189,6 +3189,8 @@
       "showAllCommands": "Show/Hide Quick Commands Panel",
       "switchTab": "Switch to Tab 1-9",
       "temporarySshLink": "Temporary Link",
+      "tileHorizontal": "Tile Top to Bottom",
+      "tileVertical": "Tile Side by Side",
       "toggleLeftSidebar": "Toggle Left Sidebar",
       "toggleRightSidebar": "Right Sidebar",
       "zoomIn": "Zoom In",

@@ -1,7 +1,7 @@
 use gpui::{Context, Div, InteractiveElement, Stateful, Window};
 
 use crate::features::NyaTermApp;
-use crate::models::{NavItem, StartupCommandAction};
+use crate::models::{NavItem, SmartSplitMode, StartupCommandAction};
 use crate::shortcuts::{
     CloseTab, CopySelectedConnections, DuplicateSession, DuplicateSessionWithCommand, LockScreen,
     ManageSyncGroups, MultiplexSsh, MultiplexSshWithCommand, NewLocalTerminal, NewSession, NextTab,
@@ -10,8 +10,8 @@ use crate::shortcuts::{
     ShowAllCommands, ShowCommandSuggestions, SwitchToTab, TemporarySshLink, TerminalClear,
     TerminalClearAll, TerminalCommandNext, TerminalCommandPrevious, TerminalCommandSelect,
     TerminalCopy, TerminalFind, TerminalPaste, TerminalPasteSelected, TerminalSelectAll,
-    ToggleLeftSidebar, ToggleNativeFullscreen, TogglePaneFocus, ToggleRecording,
-    ToggleRightSidebar, ZoomIn, ZoomOut,
+    TileHorizontal, TileVertical, ToggleLeftSidebar, ToggleNativeFullscreen, TogglePaneFocus,
+    ToggleRecording, ToggleRightSidebar, ZoomIn, ZoomOut,
 };
 
 fn shortcut_interceptor_dispatches(id: ShortcutId) -> bool {
@@ -217,6 +217,8 @@ impl NyaTermApp {
             ShortcutId::MultiplexSshWithCommand => {
                 self.open_startup_command_dialog_for(StartupCommandAction::Multiplex, window, cx)
             }
+            ShortcutId::TileHorizontal => self.apply_smart_split(SmartSplitMode::Horizontal, cx),
+            ShortcutId::TileVertical => self.apply_smart_split(SmartSplitMode::Vertical, cx),
             ShortcutId::ToggleLeftSidebar => {
                 self.execute_title_menu_command(&TitleMenuCommand::ToggleLeftSidebar, window, cx)
             }
@@ -354,6 +356,8 @@ impl NyaTermApp {
                 MultiplexSshWithCommand,
                 MultiplexSshWithCommand
             ))
+            .on_action(direct_handler!(TileHorizontal, TileHorizontal))
+            .on_action(direct_handler!(TileVertical, TileVertical))
             .on_action(direct_handler!(ToggleLeftSidebar, ToggleLeftSidebar))
             .on_action(direct_handler!(ToggleRightSidebar, ToggleRightSidebar))
             .on_action(direct_handler!(TogglePaneFocus, TogglePaneFocus))

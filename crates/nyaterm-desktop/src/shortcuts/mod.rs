@@ -45,6 +45,8 @@ pub(crate) enum ShortcutId {
     MultiplexSsh,
     DuplicateSessionWithCommand,
     MultiplexSshWithCommand,
+    TileHorizontal,
+    TileVertical,
     ToggleLeftSidebar,
     ToggleRightSidebar,
     TogglePaneFocus,
@@ -91,6 +93,8 @@ impl ShortcutId {
             Self::MultiplexSsh => "tab.multiplexSsh",
             Self::DuplicateSessionWithCommand => "tab.duplicateSessionWithCommand",
             Self::MultiplexSshWithCommand => "tab.multiplexSshWithCommand",
+            Self::TileHorizontal => "workspace.tileHorizontal",
+            Self::TileVertical => "workspace.tileVertical",
             Self::ToggleLeftSidebar => "view.toggleLeftSidebar",
             Self::ToggleRightSidebar => "view.toggleRightSidebar",
             Self::TogglePaneFocus => "view.togglePaneFocus",
@@ -379,7 +383,7 @@ macro_rules! shortcut {
     };
 }
 
-pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 41] = [
+pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 43] = [
     shortcut!(
         TerminalCopy,
         Terminal,
@@ -687,6 +691,28 @@ pub(crate) const SHORTCUT_REGISTRY: [ShortcutDefinition; 41] = [
         "meta+alt+m",
         Supported,
         "Opens the multiplex-and-run dialog."
+    ),
+    shortcut!(
+        TileHorizontal,
+        View,
+        "settings.shortcutLabels.tileHorizontal",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+b",
+        "meta+alt+b",
+        Supported,
+        "Tiles open tabs from top to bottom."
+    ),
+    shortcut!(
+        TileVertical,
+        View,
+        "settings.shortcutLabels.tileVertical",
+        Workspace,
+        ShortcutKind::Direct,
+        "ctrl+alt+v",
+        "meta+alt+v",
+        Supported,
+        "Tiles open tabs side by side."
     ),
     shortcut!(
         ToggleLeftSidebar,
@@ -1165,6 +1191,8 @@ fn binding_for_action(
         ShortcutId::MultiplexSsh => binding!(MultiplexSsh),
         ShortcutId::DuplicateSessionWithCommand => binding!(DuplicateSessionWithCommand),
         ShortcutId::MultiplexSshWithCommand => binding!(MultiplexSshWithCommand),
+        ShortcutId::TileHorizontal => binding!(TileHorizontal),
+        ShortcutId::TileVertical => binding!(TileVertical),
         ShortcutId::ToggleLeftSidebar => binding!(ToggleLeftSidebar),
         ShortcutId::ToggleRightSidebar => binding!(ToggleRightSidebar),
         ShortcutId::TogglePaneFocus => binding!(TogglePaneFocus),
@@ -1449,7 +1477,7 @@ mod tests {
 
     #[test]
     fn registry_is_complete_unique_and_has_valid_platform_defaults() {
-        assert_eq!(SHORTCUT_REGISTRY.len(), 41);
+        assert_eq!(SHORTCUT_REGISTRY.len(), 43);
         let mut ids = HashSet::new();
         for definition in SHORTCUT_REGISTRY {
             assert!(ids.insert(definition.id));
@@ -1542,6 +1570,42 @@ mod tests {
                 .canonical(),
             "meta+w,meta+shift+w"
         );
+    }
+
+    #[test]
+    fn tile_shortcuts_resolve_without_conflicts() {
+        let horizontal = SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == ShortcutId::TileHorizontal)
+            .expect("horizontal tile shortcut must be registered");
+        assert_eq!(
+            horizontal
+                .default_binding_for(ShortcutPlatform::Windows)
+                .canonical(),
+            "ctrl+alt+b"
+        );
+        assert_eq!(
+            horizontal
+                .default_binding_for(ShortcutPlatform::MacOs)
+                .canonical(),
+            "meta+alt+b"
+        );
+        let vertical = SHORTCUT_REGISTRY
+            .iter()
+            .find(|definition| definition.id == ShortcutId::TileVertical)
+            .expect("vertical tile shortcut must be registered");
+        assert_eq!(
+            vertical
+                .default_binding_for(ShortcutPlatform::Linux)
+                .canonical(),
+            "ctrl+alt+v"
+        );
+
+        let resolved = ResolvedKeymap::resolve(&HashMap::new());
+        for id in [ShortcutId::TileHorizontal, ShortcutId::TileVertical] {
+            assert!(resolved.diagnostic(id).is_none(), "{}", id.as_str());
+            assert!(resolved.shortcuts.iter().any(|shortcut| shortcut.id == id));
+        }
     }
 
     #[test]

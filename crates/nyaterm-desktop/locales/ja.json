@@ -3189,6 +3189,8 @@
       "showAllCommands": "クイックコマンドパネルを表示／非表示",
       "switchTab": "タブ 1-9 に切り替え",
       "temporarySshLink": "一時リンク",
+      "tileHorizontal": "上下に分割",
+      "tileVertical": "左右に分割",
       "toggleLeftSidebar": "左サイドバーの切り替え",
       "toggleRightSidebar": "右サイドバー",
       "zoomIn": "拡大",

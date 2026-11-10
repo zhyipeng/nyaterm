@@ -3189,6 +3189,8 @@
       "showAllCommands": "빠른 명령 패널 표시/숨기기",
       "switchTab": "1-9번 탭으로 전환",
       "temporarySshLink": "임시 링크",
+      "tileHorizontal": "위아래로 분할",
+      "tileVertical": "좌우로 분할",
       "toggleLeftSidebar": "왼쪽 사이드바 전환",
       "toggleRightSidebar": "오른쪽 사이드바",
       "zoomIn": "확대",

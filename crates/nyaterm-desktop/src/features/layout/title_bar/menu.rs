@@ -608,10 +608,12 @@ impl NyaTermApp {
                 .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Auto)),
             TitleMenuDefinition::action(t!("menu.tileHorizontally"))
                 .icon("icons/menu/horizontal.svg")
+                .shortcut(self.display_shortcut_for("workspace.tileHorizontal", "Ctrl+Alt+B"))
                 .disabled(self.session.session_order_len() < 2)
                 .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Horizontal)),
             TitleMenuDefinition::action(t!("menu.tileVertically"))
                 .icon("icons/menu/vertical.svg")
+                .shortcut(self.display_shortcut_for("workspace.tileVertical", "Ctrl+Alt+V"))
                 .disabled(self.session.session_order_len() < 2)
                 .command(TitleMenuCommand::SmartSplit(SmartSplitMode::Vertical)),
         ]

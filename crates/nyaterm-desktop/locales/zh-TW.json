@@ -3189,6 +3189,8 @@
       "showAllCommands": "顯示／隱藏快捷命令面板",
       "switchTab": "切換到標籤 1-9",
       "temporarySshLink": "臨時連結",
+      "tileHorizontal": "上下分割",
+      "tileVertical": "左右分割",
       "toggleLeftSidebar": "切換左側邊欄",
       "toggleRightSidebar": "切換右側邊欄",
       "zoomIn": "放大",
