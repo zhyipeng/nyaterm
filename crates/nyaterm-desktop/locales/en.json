@@ -716,6 +716,18 @@
     "usernameRegexPlaceholder": "Regular expression for username prompts"
   },
   "dialog": {
+    "sshConfigPickerSearchPlaceholder": "Search host, address, or user",
+    "sshConfigPickerNoMatch": "No hosts match your search.",
+    "importFromSshConfig": "Import from SSH config",
+    "sshConfigPickerTitle": "Select a host from SSH config",
+    "sshConfigPickerDescription": "Pick one host to fill in host, port, and username. Only this connection is added.",
+    "sshConfigPickerLoading": "Loading SSH config…",
+    "sshConfigPickerEmpty": "No hosts found in this SSH config.",
+    "sshConfigPickerNoHome": "Cannot locate your home directory to read the SSH config.",
+    "sshConfigPickerSelectFile": "Select an OpenSSH config file",
+    "sshConfigPickerKeys": "keys",
+    "sshConfigPickerApplied": "Filled the connection from %{host}.",
+    "sshConfigPickerCancel": "Cancel",
     "rdpGraphicsPipelineUnavailable": "RDPEGFX is unavailable in this release pending validation. Saved requests are retained.",
     "editorSections": {
       "basic": "Basic information",

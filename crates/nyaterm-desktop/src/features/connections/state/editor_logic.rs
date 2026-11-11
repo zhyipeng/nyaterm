@@ -1308,3 +1308,34 @@ pub(super) fn set_connection_editor_field_text(
         }
     }
 }
+
+/// Copy the basic endpoint of a selected ssh config host into the draft.
+///
+/// Only a new SSH draft can be filled, and an already-typed name is preserved so
+/// the picker never overwrites what the user wrote. Authentication is left as is:
+/// this only supplies host, port, and username.
+pub(super) fn apply_connection_editor_ssh_config_host(
+    draft: &mut Option<ConnectionEditorState>,
+    host: &nyaterm_core::SshConfigHost,
+) -> bool {
+    let Some(draft) = draft.as_mut() else {
+        return false;
+    };
+    if draft.kind != ConnectionKindTab::Ssh {
+        return false;
+    }
+    if draft.name.trim().is_empty() {
+        draft.name = host.alias.clone();
+    }
+    draft.host = host.host.clone();
+    draft.port = host.port.to_string();
+    if !host.user.trim().is_empty() {
+        draft.username = host.user.clone();
+    }
+    if host.host_key_alias.is_some() {
+        draft.host_key_alias = host.host_key_alias.clone();
+    }
+    draft.error = None;
+    draft.field_errors.clear();
+    true
+}

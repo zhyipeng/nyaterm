@@ -716,6 +716,18 @@
     "usernameRegexPlaceholder": "匹配用户名提示的正则表达式"
   },
   "dialog": {
+    "sshConfigPickerSearchPlaceholder": "搜索主机、地址或用户名",
+    "sshConfigPickerNoMatch": "没有匹配的 Host。",
+    "importFromSshConfig": "从 SSH 配置导入",
+    "sshConfigPickerTitle": "从 SSH 配置选择 Host",
+    "sshConfigPickerDescription": "选择一个 Host 自动填入主机、端口和用户名，只会新增这一条连接。",
+    "sshConfigPickerLoading": "正在读取 SSH 配置…",
+    "sshConfigPickerEmpty": "该 SSH 配置中没有找到 Host。",
+    "sshConfigPickerNoHome": "无法定位用户主目录，读取不到 SSH 配置。",
+    "sshConfigPickerSelectFile": "选择 OpenSSH 配置文件",
+    "sshConfigPickerKeys": "个密钥",
+    "sshConfigPickerApplied": "已按 %{host} 填充连接信息。",
+    "sshConfigPickerCancel": "取消",
     "rdpGraphicsPipelineUnavailable": "当前版本暂不提供 RDPEGFX，等待验证；已保存的请求值会保留。",
     "editorSections": {
       "basic": "基本信息",

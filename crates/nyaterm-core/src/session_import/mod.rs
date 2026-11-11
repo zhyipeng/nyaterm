@@ -364,5 +364,7 @@ pub fn prepare_ssh_config_import(
     ssh_config::prepare_ssh_config_import(config_path)
 }
 
+pub use ssh_config::{SshConfigHost, default_ssh_config_path, list_ssh_config_hosts};
+
 #[cfg(test)]
 mod tests;

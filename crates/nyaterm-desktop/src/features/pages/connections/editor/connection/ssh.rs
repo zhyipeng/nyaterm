@@ -4,7 +4,7 @@ use rust_i18n::t;
 use std::collections::HashSet;
 
 use gpui::{
-    Context, FontWeight, IntoElement, SharedString, div,
+    AnyElement, Context, FontWeight, IntoElement, SharedString, div,
     prelude::{
         FluentBuilder, InteractiveElement, ParentElement, StatefulInteractiveElement, Styled,
     },
@@ -13,8 +13,13 @@ use gpui::{
 
 use nyaterm_core::truncate_preview;
 use nyaterm_transport::{SshAlgorithmOption, SshAlgorithmRisk};
-use nyaterm_ui::{NyaCheckbox, NyaScrollable, NyaSelect, NyaTabItem, NyaTabs, NyaTooltip};
+use nyaterm_ui::{
+    NyaCheckbox, NyaScrollArea, NyaScrollable, NyaSearchInput, NyaSelect, NyaTabItem, NyaTabs,
+    NyaTooltip,
+};
 
+use crate::features::connections::SshConfigHostPicker;
+use crate::features::view_widgets::modal_dialog_shell;
 use crate::features::{NyaTermApp, connections::ConnectionEditorToggle};
 use crate::models::{
     ConnectionEditorCredentialOverlay, ConnectionEditorField, ConnectionEditorForwardingTab,
@@ -305,38 +310,60 @@ fn ssh_basic(
 ) -> gpui::Div {
     let ConnectionEditorSectionContext {
         palette,
+        editor,
         fields,
         narrow,
         ..
     } = section;
-    div().flex().flex_col().gap_3().child(
-        div()
-            .flex()
-            .when(!narrow, |this| this.flex_wrap())
-            .when(narrow, |this| this.flex_col())
-            .items_end()
-            .when(narrow, |this| this.items_stretch())
-            .gap_3()
-            .child(div().min_w(px(180.)).flex_1().child(editor_field(
-                palette,
-                required(t!("dialog.host")),
-                ConnectionEditorField::Host,
-                fields,
-                cx,
-            )))
-            .child(
-                div()
-                    .when(!narrow, |this| this.w(px(132.)).flex_none())
-                    .when(narrow, |this| this.w_full())
-                    .child(editor_stepper_field(
-                        palette,
-                        required(t!("dialog.port")),
-                        ConnectionEditorField::Port,
-                        fields,
-                        cx,
-                    )),
-            ),
-    )
+    div()
+        .flex()
+        .flex_col()
+        .gap_3()
+        .child(
+            div()
+                .flex()
+                .when(!narrow, |this| this.flex_wrap())
+                .when(narrow, |this| this.flex_col())
+                .items_end()
+                .when(narrow, |this| this.items_stretch())
+                .gap_3()
+                .child(div().min_w(px(180.)).flex_1().child(editor_field(
+                    palette,
+                    required(t!("dialog.host")),
+                    ConnectionEditorField::Host,
+                    fields,
+                    cx,
+                )))
+                .child(
+                    div()
+                        .when(!narrow, |this| this.w(px(132.)).flex_none())
+                        .when(narrow, |this| this.w_full())
+                        .child(editor_stepper_field(
+                            palette,
+                            required(t!("dialog.port")),
+                            ConnectionEditorField::Port,
+                            fields,
+                            cx,
+                        )),
+                ),
+        )
+        // Only while creating a connection: fill host/port/user from one OpenSSH
+        // config host instead of importing the whole config as saved connections.
+        .when(editor.id.is_none(), |this| {
+            this.child(
+                div().flex().items_center().child(
+                    nyaterm_ui::NyaButton::new(
+                        "connection-editor-import-ssh-config",
+                        t!("dialog.importFromSshConfig").to_string(),
+                    )
+                    .variant(nyaterm_ui::NyaButtonVariant::Secondary)
+                    .height(px(30.))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.open_connection_editor_ssh_config_picker(window, cx);
+                    })),
+                ),
+            )
+        })
 }
 
 fn ssh_authentication(
@@ -1437,4 +1464,255 @@ fn ssh_algorithms(
                 }),
         )
     })
+}
+
+/// Whether a host matches the picker's lowercase filter query.
+fn ssh_config_host_matches(host: &nyaterm_core::SshConfigHost, query: &str) -> bool {
+    host.alias.to_lowercase().contains(query)
+        || host.host.to_lowercase().contains(query)
+        || host.user.to_lowercase().contains(query)
+        || host
+            .proxy_jump
+            .as_deref()
+            .is_some_and(|jump| jump.to_lowercase().contains(query))
+}
+
+/// Modal list of OpenSSH config hosts. Picking a row fills the draft's basic
+/// endpoint; nothing is imported until the connection itself is saved.
+pub(super) fn connection_editor_ssh_config_picker(
+    palette: crate::theme::ThemePalette,
+    picker: &SshConfigHostPicker,
+    search_field: Option<&gpui::Entity<nyaterm_ui::NyaInputState>>,
+    cx: &mut Context<NyaTermApp>,
+) -> AnyElement {
+    let query = picker.search.trim().to_lowercase();
+    let filtered = if query.is_empty() {
+        picker.hosts.iter().collect::<Vec<_>>()
+    } else {
+        picker
+            .hosts
+            .iter()
+            .filter(|host| ssh_config_host_matches(host, &query))
+            .collect::<Vec<_>>()
+    };
+    let mut list = div().flex().flex_col().gap_1();
+    if picker.loading {
+        list = list.child(
+            div()
+                .py_6()
+                .text_xs()
+                .text_color(rgb(palette.text_muted))
+                .text_center()
+                .child(t!("dialog.sshConfigPickerLoading")),
+        );
+    } else if let Some(error) = picker.error.as_ref() {
+        list = list.child(
+            div()
+                .py_4()
+                .px_2()
+                .text_xs()
+                .text_color(rgb(palette.danger))
+                .child(error.clone()),
+        );
+    } else if picker.hosts.is_empty() {
+        list = list.child(
+            div()
+                .py_6()
+                .text_xs()
+                .text_color(rgb(palette.text_muted))
+                .text_center()
+                .child(t!("dialog.sshConfigPickerEmpty")),
+        );
+    } else if filtered.is_empty() {
+        list = list.child(
+            div()
+                .py_6()
+                .text_xs()
+                .text_color(rgb(palette.text_muted))
+                .text_center()
+                .child(t!("dialog.sshConfigPickerNoMatch")),
+        );
+    } else {
+        for (index, host) in filtered.iter().enumerate() {
+            let host = (*host).clone();
+            let click_host = host.clone();
+            let mut target = format!("{}:{}", host.host, host.port);
+            if !host.user.trim().is_empty() {
+                target = format!("{}@{}", host.user, target);
+            }
+            let mut meta = Vec::new();
+            if let Some(jump) = host.proxy_jump.as_ref() {
+                meta.push(format!("ProxyJump {jump}"));
+            }
+            if !host.identity_files.is_empty() {
+                meta.push(format!(
+                    "{} {}",
+                    host.identity_files.len(),
+                    t!("dialog.sshConfigPickerKeys")
+                ));
+            }
+            let row = div()
+                .id(SharedString::from(format!(
+                    "connection-ssh-config-host-{index}"
+                )))
+                .rounded_md()
+                .border_1()
+                .border_color(rgb(palette.border))
+                .bg(rgb(palette.surface))
+                .px_3()
+                .py_2()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .cursor_pointer()
+                .hover(|this| this.bg(rgb(palette.hover)))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.apply_connection_editor_ssh_config_host(click_host.clone(), cx);
+                }))
+                .child(
+                    div()
+                        .text_sm()
+                        .font_weight(FontWeight(600.))
+                        .text_color(rgb(palette.text))
+                        .child(host.alias.clone()),
+                )
+                .child(
+                    div()
+                        .text_size(px(10.))
+                        .text_color(rgb(palette.text_muted))
+                        .child(target),
+                );
+            let row = if meta.is_empty() {
+                row
+            } else {
+                row.child(
+                    div()
+                        .text_size(px(10.))
+                        .text_color(rgb(palette.text_dimmed))
+                        .child(meta.join(" · ")),
+                )
+            };
+            list = list.child(row);
+        }
+    }
+
+    let card = div()
+        .w(px(560.))
+        .max_w_full()
+        .max_h_full()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(palette.border))
+        .bg(rgb(palette.bg))
+        .shadow_lg()
+        .p_4()
+        .flex()
+        .flex_col()
+        .gap_3()
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap_3()
+                .child(
+                    div()
+                        .flex_1()
+                        .text_lg()
+                        .font_weight(FontWeight(700.))
+                        .text_color(rgb(palette.text))
+                        .child(t!("dialog.sshConfigPickerTitle")),
+                )
+                .child(
+                    div()
+                        .id("connection-ssh-config-picker-close")
+                        .size(px(28.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_sm()
+                        .text_lg()
+                        .text_color(rgb(palette.text_muted))
+                        .cursor_pointer()
+                        .hover(|this| this.bg(rgb(palette.hover)))
+                        .child("×")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.close_connection_editor_ssh_config_picker(cx);
+                        })),
+                ),
+        )
+        .child(
+            div()
+                .text_sm()
+                .text_color(rgb(palette.text_muted))
+                .child(t!("dialog.sshConfigPickerDescription")),
+        )
+        .child(
+            div()
+                .text_size(px(10.))
+                .text_color(rgb(palette.text_dimmed))
+                .truncate()
+                .child(picker.path.display().to_string()),
+        )
+        .when_some(search_field, |this, field| {
+            this.child(div().w_full().child(NyaSearchInput::new(
+                "connection-ssh-config-picker.search",
+                field,
+            )))
+        })
+        .child(
+            NyaScrollArea::new("connection-ssh-config-picker-list")
+                .max_h(px(360.))
+                .child(list),
+        )
+        .child(
+            div().flex().justify_end().child(
+                nyaterm_ui::NyaButton::new(
+                    "connection-ssh-config-picker-cancel",
+                    t!("dialog.sshConfigPickerCancel").to_string(),
+                )
+                .variant(nyaterm_ui::NyaButtonVariant::Secondary)
+                .height(px(34.))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.close_connection_editor_ssh_config_picker(cx);
+                })),
+            ),
+        );
+
+    modal_dialog_shell(
+        palette,
+        rgb(palette.bg),
+        "connection-ssh-config-picker",
+        560.,
+        card,
+    )
+    .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ssh_config_host_matches;
+    use nyaterm_core::SshConfigHost;
+
+    fn sample_host() -> SshConfigHost {
+        SshConfigHost {
+            alias: "prod-web".to_string(),
+            host: "10.0.0.5".to_string(),
+            port: 22,
+            user: "deploy".to_string(),
+            identity_files: Vec::new(),
+            proxy_jump: Some("bastion".to_string()),
+            host_key_alias: None,
+        }
+    }
+
+    #[test]
+    fn search_matches_alias_address_user_and_jump() {
+        let host = sample_host();
+        assert!(ssh_config_host_matches(&host, "web"));
+        assert!(ssh_config_host_matches(&host, "10.0"));
+        assert!(ssh_config_host_matches(&host, "deploy"));
+        assert!(ssh_config_host_matches(&host, "bastion"));
+        assert!(!ssh_config_host_matches(&host, "missing"));
+    }
 }

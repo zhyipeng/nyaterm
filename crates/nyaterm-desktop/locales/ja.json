@@ -716,6 +716,18 @@
     "usernameRegexPlaceholder": "ユーザー名プロンプト用の正規表現"
   },
   "dialog": {
+    "sshConfigPickerSearchPlaceholder": "ホスト・アドレス・ユーザー名で検索",
+    "sshConfigPickerNoMatch": "一致するホストがありません。",
+    "importFromSshConfig": "SSH 設定からインポート",
+    "sshConfigPickerTitle": "SSH 設定からホストを選択",
+    "sshConfigPickerDescription": "ホストを 1 つ選ぶと、ホスト名・ポート・ユーザー名を自動入力します。追加されるのはこの接続のみです。",
+    "sshConfigPickerLoading": "SSH 設定を読み込み中…",
+    "sshConfigPickerEmpty": "この SSH 設定にホストが見つかりません。",
+    "sshConfigPickerNoHome": "ホームディレクトリを特定できず、SSH 設定を読み込めません。",
+    "sshConfigPickerSelectFile": "OpenSSH 設定ファイルを選択",
+    "sshConfigPickerKeys": "個の鍵",
+    "sshConfigPickerApplied": "%{host} から接続情報を入力しました。",
+    "sshConfigPickerCancel": "キャンセル",
     "rdpGraphicsPipelineUnavailable": "RDPEGFX は検証待ちのため、このバージョンでは利用できません。保存済みの要求値は保持されます。",
     "editorSections": {
       "basic": "基本情報",

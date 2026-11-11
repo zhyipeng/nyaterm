@@ -716,6 +716,18 @@
     "usernameRegexPlaceholder": "Expression régulière pour les invites de nom d'utilisateur"
   },
   "dialog": {
+    "sshConfigPickerSearchPlaceholder": "Rechercher un hôte, une adresse ou un utilisateur",
+    "sshConfigPickerNoMatch": "Aucun hôte ne correspond à la recherche.",
+    "importFromSshConfig": "Importer depuis la config SSH",
+    "sshConfigPickerTitle": "Choisir un hôte dans la config SSH",
+    "sshConfigPickerDescription": "Choisissez un hôte pour remplir l'hôte, le port et le nom d'utilisateur. Seule cette connexion est ajoutée.",
+    "sshConfigPickerLoading": "Chargement de la config SSH…",
+    "sshConfigPickerEmpty": "Aucun hôte trouvé dans cette config SSH.",
+    "sshConfigPickerNoHome": "Impossible de localiser le répertoire personnel pour lire la config SSH.",
+    "sshConfigPickerSelectFile": "Sélectionner un fichier de config OpenSSH",
+    "sshConfigPickerKeys": "clés",
+    "sshConfigPickerApplied": "Connexion remplie depuis %{host}.",
+    "sshConfigPickerCancel": "Annuler",
     "rdpGraphicsPipelineUnavailable": "RDPEGFX est indisponible dans cette version en attente de validation. Les demandes enregistrées sont conservées.",
     "editorSections": {
       "basic": "Informations générales",

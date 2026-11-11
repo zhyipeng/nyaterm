@@ -48,7 +48,8 @@ use self::local::connection_editor_local_section;
 use self::rdp::connection_editor_rdp_section;
 use self::serial::connection_editor_serial_section;
 use self::ssh::{
-    SshConnectionSectionLabels, SshConnectionSectionOptions, connection_editor_ssh_section,
+    SshConnectionSectionLabels, SshConnectionSectionOptions, connection_editor_ssh_config_picker,
+    connection_editor_ssh_section,
 };
 use self::telnet::connection_editor_telnet_section;
 use self::vnc::connection_editor_vnc_section;
@@ -678,6 +679,8 @@ impl NyaTermApp {
         let agent_identity_picker_open =
             self.connection_state.editor_agent_identity_picker_is_open();
         let credential_overlay = self.connection_state.editor_credential_overlay();
+        let ssh_config_picker = self.connection_state.editor_ssh_config_picker();
+        let ssh_config_search = self.existing_text_input("connection-ssh-config-picker.search");
         let baud_popover_open = self.connection_state.editor_baud_popover_is_open();
         let validation_error = self.connection_editor_validation_error(&editor);
         let save_enabled = !self.connection_state.editor_save_in_flight();
@@ -1126,6 +1129,14 @@ impl NyaTermApp {
             })
             .when_some(credential_overlay, |this, overlay| {
                 this.child(self.connection_editor_credential_manager(overlay, cx))
+            })
+            .when_some(ssh_config_picker, |this, picker| {
+                this.child(connection_editor_ssh_config_picker(
+                    palette,
+                    &picker,
+                    ssh_config_search.as_ref(),
+                    cx,
+                ))
             });
         if native_window {
             surface.into_any_element()

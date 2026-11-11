@@ -995,6 +995,10 @@ impl NyaTermApp {
 
         match keystroke.key.as_str() {
             "escape" => {
+                if self.connection_state.editor_ssh_config_picker().is_some() {
+                    self.close_connection_editor_ssh_config_picker(cx);
+                    return true;
+                }
                 if self.connection_state.editor_agent_identity_picker_is_open() {
                     self.set_connection_editor_agent_identity_picker_open(false, cx);
                     return true;
@@ -1031,7 +1035,8 @@ impl NyaTermApp {
                 return true;
             }
             "enter" => {
-                if self.connection_state.editor_credential_overlay().is_some()
+                if self.connection_state.editor_ssh_config_picker().is_some()
+                    || self.connection_state.editor_credential_overlay().is_some()
                     || self.connection_state.editor_agent_identity_picker_is_open()
                 {
                     return true;

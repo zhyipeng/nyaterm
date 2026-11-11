@@ -498,7 +498,9 @@ impl NyaTermApp {
         // Remote panels render cached snapshots, so their input subscriptions need the
         // same deferred flush boundary as panel event handlers.
         let remote_panel_input = id.starts_with("remote.");
-        if let Some(host) = id.strip_prefix("tmux.command.") {
+        if id.as_ref() == "connection-ssh-config-picker.search" {
+            self.apply_connection_editor_ssh_config_search(text, cx);
+        } else if let Some(host) = id.strip_prefix("tmux.command.") {
             self.on_tmux_command_draft(host, text, cx);
         } else if id.starts_with("asset-batch.") {
             self.apply_asset_batch_input(id.as_ref(), &text, cx);

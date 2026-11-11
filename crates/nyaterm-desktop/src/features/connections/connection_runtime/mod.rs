@@ -9,3 +9,4 @@ mod catalog_sync;
 mod editor;
 mod groups;
 mod password;
+mod ssh_config_picker;

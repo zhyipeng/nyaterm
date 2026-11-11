@@ -43,15 +43,16 @@ use self::password::EditorPasswordState;
 
 use self::editor_logic::{
     ConnectionEditorPlaceholder, add_connection_editor_agent_endpoint,
-    apply_connection_editor_shell_path, apply_connection_editor_working_dir,
-    clear_connection_editor_runtime_state, commit_connection_editor_new_group,
-    connection_editor_inline_panel_draft, editor_field_seeds, forwarding_endpoint_field_seeds,
-    insert_connection_editor_description_newline, move_connection_editor_agent_endpoint,
-    move_connection_editor_ssh_algorithm, remove_connection_editor_agent_endpoint,
-    select_connection_editor_agent_endpoint, select_saved_connection_after_editor_save,
-    set_connection_editor_agent_endpoint_type, set_connection_editor_error,
-    set_connection_editor_field_text, set_connection_editor_forwarding_endpoint_field,
-    set_connection_editor_icon, set_connection_editor_icon_auto_detect, set_connection_editor_kind,
+    apply_connection_editor_shell_path, apply_connection_editor_ssh_config_host,
+    apply_connection_editor_working_dir, clear_connection_editor_runtime_state,
+    commit_connection_editor_new_group, connection_editor_inline_panel_draft, editor_field_seeds,
+    forwarding_endpoint_field_seeds, insert_connection_editor_description_newline,
+    move_connection_editor_agent_endpoint, move_connection_editor_ssh_algorithm,
+    remove_connection_editor_agent_endpoint, select_connection_editor_agent_endpoint,
+    select_saved_connection_after_editor_save, set_connection_editor_agent_endpoint_type,
+    set_connection_editor_error, set_connection_editor_field_text,
+    set_connection_editor_forwarding_endpoint_field, set_connection_editor_icon,
+    set_connection_editor_icon_auto_detect, set_connection_editor_kind,
     set_connection_editor_password_source, set_connection_editor_select_value,
     set_connection_editor_ssh_algorithm_enabled, set_connection_editor_ssh_algorithm_tab,
     set_connection_group_editor_error, toggle_connection_editor_agent_allowlist_fingerprint,
@@ -184,6 +185,18 @@ struct ConnectionListState {
     expanded_groups_revision: u64,
 }
 
+/// Read-only state for the "select a host from ssh config" picker shown inside
+/// the connection editor. The host list is loaded off the render path; the
+/// picker renders whatever snapshot is current while `loading` is set.
+#[derive(Clone, Debug)]
+pub(in crate::features) struct SshConfigHostPicker {
+    pub path: PathBuf,
+    pub hosts: Vec<nyaterm_core::SshConfigHost>,
+    pub loading: bool,
+    pub error: Option<String>,
+    pub search: String,
+}
+
 struct ConnectionEditorFeatureState {
     draft: Option<ConnectionEditorState>,
     password: EditorPasswordState,
@@ -209,6 +222,8 @@ struct ConnectionEditorFeatureState {
     group_select_open: bool,
     agent_identity_picker_open: bool,
     credential_overlay: Option<ConnectionEditorCredentialOverlay>,
+    ssh_config_picker: Option<SshConfigHostPicker>,
+    ssh_config_picker_generation: u64,
     baud_popover_open: bool,
     agent_preview_generation: u64,
     group_select_trigger_bounds: Option<Bounds<Pixels>>,
@@ -308,6 +323,8 @@ impl ConnectionFeatureState {
                 group_select_open: false,
                 agent_identity_picker_open: false,
                 credential_overlay: None,
+                ssh_config_picker: None,
+                ssh_config_picker_generation: 0,
                 baud_popover_open: false,
                 agent_preview_generation: 0,
                 group_select_trigger_bounds: None,
@@ -1085,6 +1102,7 @@ impl ConnectionFeatureState {
         self.editor.baud_popover_open = false;
         self.set_editor_agent_identity_picker_open(false);
         self.editor.credential_overlay = None;
+        self.editor.ssh_config_picker = None;
         true
     }
 
@@ -1147,6 +1165,47 @@ impl ConnectionFeatureState {
         overlay: Option<ConnectionEditorCredentialOverlay>,
     ) -> bool {
         self.editor.set_credential_overlay(overlay)
+    }
+
+    pub fn editor_ssh_config_picker(&self) -> Option<SshConfigHostPicker> {
+        self.editor.ssh_config_picker()
+    }
+
+    pub fn begin_editor_ssh_config_picker_load(&mut self, path: PathBuf) -> u64 {
+        self.editor.begin_ssh_config_picker_load(path)
+    }
+
+    pub fn set_editor_ssh_config_hosts(
+        &mut self,
+        generation: u64,
+        result: Result<Vec<nyaterm_core::SshConfigHost>, String>,
+    ) -> bool {
+        self.editor.set_ssh_config_hosts(generation, result)
+    }
+
+    pub fn close_editor_ssh_config_picker(&mut self) -> bool {
+        self.editor.close_ssh_config_picker()
+    }
+
+    pub fn set_editor_ssh_config_search(&mut self, text: String) -> bool {
+        self.editor.set_ssh_config_search(text)
+    }
+
+    /// Fill the draft connection from a selected ssh config host.
+    ///
+    /// Only the basic endpoint is copied; a name the user already typed is kept,
+    /// and authentication stays as configured so this never silently changes the
+    /// credential mode. The view pushes the new draft back into its inputs.
+    pub fn apply_editor_ssh_config_host(
+        &mut self,
+        host: &nyaterm_core::SshConfigHost,
+        cx: &mut App,
+    ) -> bool {
+        if !apply_connection_editor_ssh_config_host(&mut self.editor.draft, host) {
+            return false;
+        }
+        self.sync_editor_fields_from_draft(cx);
+        true
     }
 
     pub fn set_editor_baud_popover_open(&mut self, open: bool) -> bool {
@@ -2121,6 +2180,7 @@ impl ConnectionEditorFeatureState {
         self.group_select_open = false;
         self.agent_identity_picker_open = false;
         self.credential_overlay = None;
+        self.ssh_config_picker = None;
         self.baud_popover_open = false;
         self.agent_preview_generation = self.agent_preview_generation.wrapping_add(1);
         self.group_select_trigger_bounds = None;
@@ -2231,6 +2291,76 @@ impl ConnectionEditorFeatureState {
             return false;
         }
         self.agent_identity_picker_open = open;
+        true
+    }
+
+    pub fn ssh_config_picker(&self) -> Option<SshConfigHostPicker> {
+        self.ssh_config_picker.clone()
+    }
+
+    /// Start (or restart) loading the host list for `path`. Bumps the generation
+    /// so a slow parse from a previous request cannot overwrite the new picker.
+    pub fn begin_ssh_config_picker_load(&mut self, path: PathBuf) -> u64 {
+        self.close_icon_picker();
+        self.close_group_select();
+        self.agent_identity_picker_open = false;
+        self.credential_overlay = None;
+        self.baud_popover_open = false;
+        self.ssh_config_picker_generation = self.ssh_config_picker_generation.wrapping_add(1);
+        self.ssh_config_picker = Some(SshConfigHostPicker {
+            path,
+            hosts: Vec::new(),
+            loading: true,
+            error: None,
+            search: String::new(),
+        });
+        self.ssh_config_picker_generation
+    }
+
+    pub fn set_ssh_config_hosts(
+        &mut self,
+        generation: u64,
+        result: Result<Vec<nyaterm_core::SshConfigHost>, String>,
+    ) -> bool {
+        if generation != self.ssh_config_picker_generation {
+            return false;
+        }
+        let Some(picker) = self.ssh_config_picker.as_mut() else {
+            return false;
+        };
+        picker.loading = false;
+        match result {
+            Ok(hosts) => {
+                picker.hosts = hosts;
+                picker.error = None;
+            }
+            Err(error) => {
+                picker.hosts.clear();
+                picker.error = Some(error);
+            }
+        }
+        true
+    }
+
+    pub fn close_ssh_config_picker(&mut self) -> bool {
+        if self.ssh_config_picker.take().is_some() {
+            self.ssh_config_picker_generation = self.ssh_config_picker_generation.wrapping_add(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update the picker's filter query. Returns whether it changed so the view
+    /// only repaints when the visible subset can actually differ.
+    pub fn set_ssh_config_search(&mut self, text: String) -> bool {
+        let Some(picker) = self.ssh_config_picker.as_mut() else {
+            return false;
+        };
+        if picker.search == text {
+            return false;
+        }
+        picker.search = text;
         true
     }
 
@@ -2395,6 +2525,8 @@ impl ConnectionEditorFeatureState {
         self.save_generation = self.save_generation.wrapping_add(1);
         self.agent_identity_picker_open = false;
         self.credential_overlay = None;
+        self.ssh_config_picker = None;
+        self.ssh_config_picker_generation = self.ssh_config_picker_generation.wrapping_add(1);
         self.baud_popover_open = false;
         self.agent_preview_generation = self.agent_preview_generation.wrapping_add(1);
         self.save_in_flight = None;

@@ -2,13 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use super::{
     ConnectionEditorFeatureState, apply_connection_editor_shell_path,
-    apply_connection_editor_working_dir, clear_connection_editor_runtime_state,
-    clear_connection_list_runtime_state, clear_network_proxy_editor, clear_network_tunnel_editor,
-    clear_selected_connection_ids, commit_connection_editor_new_group,
-    connection_drop_position_for_target, connection_editor_inline_panel_draft,
-    cycle_connection_sort_mode, insert_connection_editor_description_newline,
-    move_connection_editor_ssh_algorithm, remove_connection_list_references,
-    remove_group_list_references, remove_network_group_references, remove_network_item_references,
+    apply_connection_editor_ssh_config_host, apply_connection_editor_working_dir,
+    clear_connection_editor_runtime_state, clear_connection_list_runtime_state,
+    clear_network_proxy_editor, clear_network_tunnel_editor, clear_selected_connection_ids,
+    commit_connection_editor_new_group, connection_drop_position_for_target,
+    connection_editor_inline_panel_draft, cycle_connection_sort_mode,
+    insert_connection_editor_description_newline, move_connection_editor_ssh_algorithm,
+    remove_connection_list_references, remove_group_list_references,
+    remove_network_group_references, remove_network_item_references,
     retain_loaded_connection_references, retain_loaded_group_list_references,
     saved_connections_in_group_tree_for_list_state, select_connection_ids,
     select_saved_connection_after_editor_save, selected_connections_for_list_state,
@@ -45,7 +46,7 @@ use gpui::{AppContext as _, TestAppContext};
 use nyaterm_core::{
     AiExecutionProfile, AppRuntime, ConnectionRecordingSettings, ConnectionType, Group,
     RecordingMode, RecordingRotationPolicy, RuntimeMode, SavedConnection, SshAgentEndpoint,
-    SshAgentForwardingPolicy, SshProfile, SshTerminalType, uuid,
+    SshAgentForwardingPolicy, SshConfigHost, SshProfile, SshTerminalType, uuid,
 };
 use nyaterm_ui::ChildWindowSlot;
 use std::path::PathBuf;
@@ -904,6 +905,8 @@ fn connection_editor_owner(cx: &TestAppContext) -> ConnectionEditorFeatureState 
         group_select_open: false,
         agent_identity_picker_open: false,
         credential_overlay: None,
+        ssh_config_picker: None,
+        ssh_config_picker_generation: 0,
         baud_popover_open: false,
         agent_preview_generation: 0,
         group_select_trigger_bounds: None,
@@ -1437,6 +1440,114 @@ fn connection_editor_credential_overlay_closes_competing_popups() {
 
     assert!(owner.set_credential_overlay(None));
     assert_eq!(owner.credential_overlay(), None);
+}
+
+fn sample_ssh_config_host(alias: &str) -> SshConfigHost {
+    SshConfigHost {
+        alias: alias.to_string(),
+        host: "10.0.0.1".to_string(),
+        port: 2222,
+        user: "alice".to_string(),
+        identity_files: Vec::new(),
+        proxy_jump: None,
+        host_key_alias: None,
+    }
+}
+
+#[test]
+fn ssh_config_picker_loads_closes_and_clears_competing_popups() {
+    let cx = TestAppContext::single();
+    let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let mut owner = connection_editor_owner(&cx);
+    assert!(owner.set_icon_picker_open(true));
+
+    let generation = owner.begin_ssh_config_picker_load(PathBuf::from("/tmp/config"));
+    assert!(!owner.icon_picker_is_open());
+    let picker = owner.ssh_config_picker().expect("picker is open");
+    assert!(picker.loading);
+    assert_eq!(picker.path, PathBuf::from("/tmp/config"));
+
+    assert!(owner.set_ssh_config_hosts(generation, Ok(vec![sample_ssh_config_host("web")])));
+    let picker = owner.ssh_config_picker().expect("picker is open");
+    assert!(!picker.loading);
+    assert_eq!(picker.hosts.len(), 1);
+
+    assert!(owner.close_ssh_config_picker());
+    assert!(owner.ssh_config_picker().is_none());
+    // A late result for the closed request must be ignored.
+    assert!(!owner.set_ssh_config_hosts(generation, Ok(vec![])));
+    assert!(owner.ssh_config_picker().is_none());
+}
+
+#[test]
+fn stale_ssh_config_picker_generation_is_ignored() {
+    let cx = TestAppContext::single();
+    let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let mut owner = connection_editor_owner(&cx);
+    let first = owner.begin_ssh_config_picker_load(PathBuf::from("/tmp/a"));
+    let second = owner.begin_ssh_config_picker_load(PathBuf::from("/tmp/b"));
+    assert_ne!(first, second);
+
+    assert!(!owner.set_ssh_config_hosts(first, Ok(vec![])));
+    assert!(owner.ssh_config_picker().expect("open").loading);
+    assert!(owner.set_ssh_config_hosts(second, Ok(vec![])));
+    assert!(!owner.ssh_config_picker().expect("open").loading);
+}
+
+#[test]
+fn ssh_config_picker_search_only_updates_while_open() {
+    let cx = TestAppContext::single();
+    let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+    let mut owner = connection_editor_owner(&cx);
+
+    assert!(!owner.set_ssh_config_search("web".to_string()));
+    let generation = owner.begin_ssh_config_picker_load(PathBuf::from("/tmp/config"));
+    assert_eq!(owner.ssh_config_picker().expect("open").search, "");
+    assert!(owner.set_ssh_config_search("web".to_string()));
+    assert_eq!(owner.ssh_config_picker().expect("open").search, "web");
+    // Repeating the same query is a no-op, so the view does not repaint.
+    assert!(!owner.set_ssh_config_search("web".to_string()));
+    assert!(owner.set_ssh_config_hosts(generation, Ok(vec![])));
+    assert!(owner.close_ssh_config_picker());
+    assert!(!owner.set_ssh_config_search("db".to_string()));
+}
+
+#[test]
+fn applying_ssh_config_host_fills_endpoint_and_keeps_typed_name() {
+    let mut draft = Some(ConnectionEditorState {
+        id: None,
+        name: String::new(),
+        host: String::new(),
+        port: "22".to_string(),
+        username: "root".to_string(),
+        host_key_alias: None,
+        ..connection_editor_state_with_secret_draft()
+    });
+
+    assert!(apply_connection_editor_ssh_config_host(
+        &mut draft,
+        &sample_ssh_config_host("web")
+    ));
+    let editor = draft.as_ref().expect("draft");
+    assert_eq!(editor.name, "web");
+    assert_eq!(editor.host, "10.0.0.1");
+    assert_eq!(editor.port, "2222");
+    assert_eq!(editor.username, "alice");
+
+    // A name the user typed is preserved.
+    draft.as_mut().expect("draft").name = "custom".to_string();
+    assert!(apply_connection_editor_ssh_config_host(
+        &mut draft,
+        &sample_ssh_config_host("db")
+    ));
+    assert_eq!(draft.as_ref().expect("draft").name, "custom");
+
+    // Non-SSH drafts are not touchable by this picker.
+    draft.as_mut().expect("draft").kind = ConnectionKindTab::Telnet;
+    assert!(!apply_connection_editor_ssh_config_host(
+        &mut draft,
+        &sample_ssh_config_host("x")
+    ));
 }
 
 #[test]

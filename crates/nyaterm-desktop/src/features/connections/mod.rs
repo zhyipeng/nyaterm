@@ -15,5 +15,5 @@ pub(in crate::features) use state::import::{
 };
 pub(in crate::features) use state::{
     ConnectionFeatureFocus, ConnectionFeatureState, ConnectionListModelSnapshot,
-    ConnectionListRowsKey,
+    ConnectionListRowsKey, SshConfigHostPicker,
 };

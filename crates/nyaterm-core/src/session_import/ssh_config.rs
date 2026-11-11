@@ -48,6 +48,53 @@ struct ResolvedHost {
     host_key_alias: Option<String>,
 }
 
+/// One concrete host alias declared by an OpenSSH config, resolved to the values
+/// the connection editor would prefill.
+///
+/// Unlike [`prepare_ssh_config_import`], this does not materialize saved
+/// connections, keys, or ProxyJump routes; it is the read-only listing behind
+/// the "select a host from ssh config" picker so a user can import a single
+/// connection instead of the whole file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SshConfigHost {
+    pub alias: String,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub identity_files: Vec<String>,
+    pub proxy_jump: Option<String>,
+    pub host_key_alias: Option<String>,
+}
+
+/// Default OpenSSH user config path (`~/.ssh/config`), if the home directory can
+/// be resolved.
+pub fn default_ssh_config_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".ssh").join("config"))
+}
+
+/// List the concrete host aliases in an OpenSSH config without importing them.
+///
+/// `Include` directives are followed exactly like the bulk importer, but wildcard
+/// and negated patterns are skipped: they are not concrete connections a user can
+/// pick. The returned order is the first appearance order of each alias.
+pub fn list_ssh_config_hosts(path: &Path) -> AppResult<Vec<SshConfigHost>> {
+    let config = ParsedConfig::load(path)?;
+    let mut hosts = Vec::new();
+    for alias in config.aliases() {
+        let resolved = config.resolve(&alias);
+        hosts.push(SshConfigHost {
+            alias: resolved.alias,
+            host: resolved.host,
+            port: resolved.port,
+            user: resolved.user,
+            identity_files: resolved.identity_files,
+            proxy_jump: resolved.proxy_jump,
+            host_key_alias: resolved.host_key_alias,
+        });
+    }
+    Ok(hosts)
+}
+
 pub(super) fn prepare_ssh_config_import(path: &Path) -> AppResult<PreparedSessionImport> {
     let config = ParsedConfig::load(path)?;
     let mut builder = ImportBuilder::new(&config);
@@ -777,9 +824,63 @@ fn saved_connection(
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_ssh_config_import;
+    use super::{list_ssh_config_hosts, prepare_ssh_config_import};
     use crate::ConnectionType;
     use std::fs;
+
+    #[test]
+    fn list_hosts_returns_concrete_aliases_and_skips_wildcards() {
+        let temp = Temp::new();
+        fs::write(
+            temp.0.join("config"),
+            "Host web db !blocked\n HostName 10.0.0.1\n User alice\nHost *.internal\n HostName wild.invalid\nHost jump\n HostName bastion.invalid\nHost app\n HostName 10.0.0.9\n Port 2222\n ProxyJump jump\n",
+        )
+        .unwrap();
+        let hosts = list_ssh_config_hosts(&temp.0.join("config")).unwrap();
+        let aliases = hosts
+            .iter()
+            .map(|host| host.alias.as_str())
+            .collect::<Vec<_>>();
+        // `*.internal` is a pattern, not a concrete alias, so it is not listed.
+        assert_eq!(aliases, vec!["web", "db", "jump", "app"]);
+        let app = hosts.iter().find(|host| host.alias == "app").unwrap();
+        assert_eq!(app.host, "10.0.0.9");
+        assert_eq!(app.port, 2222);
+        assert_eq!(app.proxy_jump.as_deref(), Some("jump"));
+        assert_eq!(
+            hosts.iter().find(|host| host.alias == "web").unwrap().user,
+            "alice"
+        );
+    }
+
+    #[test]
+    fn list_hosts_follows_include_and_dedupes_aliases() {
+        let temp = Temp::new();
+        fs::write(
+            temp.0.join("config"),
+            "Include extra.conf\nHost shared\n Port 2200\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.0.join("extra.conf"),
+            "Host shared\n User bob\nHost extra\n",
+        )
+        .unwrap();
+        let hosts = list_ssh_config_hosts(&temp.0.join("config")).unwrap();
+        let aliases = hosts
+            .iter()
+            .map(|host| host.alias.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(aliases, vec!["shared", "extra"]);
+        assert_eq!(
+            hosts
+                .iter()
+                .find(|host| host.alias == "shared")
+                .unwrap()
+                .port,
+            2200
+        );
+    }
 
     const PRIVATE_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----\n\
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n\
