@@ -482,7 +482,7 @@ async fn cancellation_interrupts_pending_proxy_handshake_and_closes_the_socket()
         .unwrap();
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn stalled_proxy_handshake_has_a_network_timeout() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -499,13 +499,34 @@ async fn stalled_proxy_handshake_has_a_network_timeout() {
         }),
         jump: None,
     }));
-    let (mut stream, _) = listener.accept().await.unwrap();
-    let mut buf = [0; 1024];
-    assert!(stream.read(&mut buf).await.unwrap() > 0);
+    // Real socket readiness must settle before pausing time; otherwise Tokio
+    // can advance the connection deadline before the listener accepts it.
+    let mut stream = tokio::time::timeout(Duration::from_secs(3), async {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut buf = [0; 1024];
+        assert!(stream.read(&mut buf).await.unwrap() > 0);
+        stream
+    })
+    .await
+    .expect("the proxy receives a handshake before the connection timeout");
+    tokio::time::pause();
     tokio::time::advance(Duration::from_secs(31)).await;
-    let error = pending.await.unwrap().err().unwrap();
+    let error = tokio::time::timeout(Duration::from_secs(1), pending)
+        .await
+        .expect("the stalled handshake reaches its connection timeout")
+        .unwrap()
+        .err()
+        .unwrap();
     assert!(error.to_string().contains("timed out"));
-    assert_eq!(stream.read(&mut buf).await.unwrap(), 0);
+    tokio::time::resume();
+    let mut buf = [0; 1024];
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(3), stream.read(&mut buf))
+            .await
+            .expect("the timed-out connection closes the socket")
+            .unwrap(),
+        0
+    );
 }
 
 #[tokio::test]

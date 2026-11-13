@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use gpui::{KeyDownEvent, KeyUpEvent};
 use nyaterm_terminal::TerminalScreen;
 use nyaterm_terminal::navigation::{NavigationKey, navigation_key_bytes};
@@ -32,7 +34,7 @@ pub fn terminal_key_bytes_with_mode(
     event: &KeyDownEvent,
     mode: TerminalKeyMode,
 ) -> Option<Vec<u8>> {
-    let keystroke = &event.keystroke;
+    let keystroke = terminal_shortcut_keystroke(&event.keystroke);
     if keystroke.modifiers.function {
         return None;
     }
@@ -46,7 +48,7 @@ pub fn terminal_key_bytes_with_mode(
     let alt = keystroke.modifiers.alt;
     let shift = keystroke.modifiers.shift;
 
-    if let Some(bytes) = alt_arrow_word_jump_bytes(key, shift, alt, ctrl, keystroke, mode) {
+    if let Some(bytes) = alt_arrow_word_jump_bytes(key, shift, alt, ctrl, &keystroke, mode) {
         return Some(bytes);
     }
 
@@ -55,8 +57,7 @@ pub fn terminal_key_bytes_with_mode(
     }
 
     if (mode.kitty_keyboard_disambiguate || mode.kitty_keyboard_report_all_keys_as_esc)
-        && let Some(bytes) =
-            kitty_key_bytes(&event.keystroke, mode, KittyKeyEvent::from_key_down(event))
+        && let Some(bytes) = kitty_key_bytes(&keystroke, mode, KittyKeyEvent::from_key_down(event))
     {
         return Some(bytes);
     }
@@ -152,17 +153,44 @@ pub fn terminal_key_release_bytes_with_mode(
     if !(mode.kitty_keyboard_disambiguate || mode.kitty_keyboard_report_all_keys_as_esc) {
         return None;
     }
-    if event.keystroke.modifiers.function {
+    let keystroke = terminal_shortcut_keystroke(&event.keystroke);
+    if keystroke.modifiers.function {
         return None;
     }
-    if event.keystroke.modifiers.platform
-        && !event.keystroke.modifiers.control
-        && !event.keystroke.modifiers.alt
-    {
+    if keystroke.modifiers.platform && !keystroke.modifiers.control && !keystroke.modifiers.alt {
         return None;
     }
 
-    kitty_key_bytes(&event.keystroke, mode, KittyKeyEvent::Release)
+    kitty_key_bytes(&keystroke, mode, KittyKeyEvent::Release)
+}
+
+/// macOS line-motion shortcuts act as Ctrl+A/E in the shell. Normalize both
+/// press and release so Kitty reporting retains the same logical key identity.
+fn terminal_shortcut_keystroke(keystroke: &gpui::Keystroke) -> Cow<'_, gpui::Keystroke> {
+    #[cfg(target_os = "macos")]
+    if keystroke.modifiers.platform
+        && !keystroke.modifiers.control
+        && !keystroke.modifiers.alt
+        && !keystroke.modifiers.shift
+        && !keystroke.modifiers.function
+    {
+        let key = match keystroke.key.as_str() {
+            "left" => Some("a"),
+            "right" => Some("e"),
+            _ => None,
+        };
+        if let Some(key) = key {
+            return Cow::Owned(gpui::Keystroke {
+                key: key.into(),
+                key_char: None,
+                modifiers: gpui::Modifiers {
+                    control: true,
+                    ..gpui::Modifiers::default()
+                },
+            });
+        }
+    }
+    Cow::Borrowed(keystroke)
 }
 
 /// Option+Left/Right as readline word motion. Shells such as zsh bind `ESC b` and

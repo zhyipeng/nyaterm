@@ -37,7 +37,7 @@ impl Render for WorkspaceFixture {
                             (item.test_label() == rust_i18n::t!("menu.smartSplit").as_ref())
                                 .then(|| item.children().unwrap().to_vec())
                         })
-                        .expect("the three smart tiling entries")
+                        .expect("the workspace layout submenu")
                 })
             });
         let workspace = self
@@ -101,18 +101,21 @@ fn render_groups_and_invoke_menu() {
         });
         draw(&app, cx);
         for _ in 0..2 {
-            for (index, mode) in [
+            for mode in [
                 SmartSplitMode::Auto,
                 SmartSplitMode::Horizontal,
                 SmartSplitMode::Vertical,
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                // Invoke the real title-menu handlers through the dropdown's keyboard path.
-                cx.simulate_click(point(px(20.), px(16.)), Default::default());
-                draw(&app, cx);
-                cx.simulate_keystrokes(&format!("{}enter", "down ".repeat(index + 1)));
+            ] {
+                if mode == SmartSplitMode::Auto {
+                    // Only Auto tiles existing sessions from this menu. The
+                    // horizontal/vertical entries now duplicate the active session.
+                    cx.simulate_click(point(px(20.), px(16.)), Default::default());
+                    draw(&app, cx);
+                    cx.simulate_keystrokes("down enter");
+                } else {
+                    // Retain small-stack rendering coverage for directional layouts.
+                    app.update(cx, |app, cx| app.apply_smart_split(mode, cx));
+                }
                 draw(&app, cx);
                 app.read_with(cx, |app, _| {
                     let tree = app.shell.terminal_window_tree().unwrap();

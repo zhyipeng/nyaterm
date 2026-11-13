@@ -651,3 +651,84 @@ fn word_motion_yields_to_the_kitty_keyboard_protocol() {
         }
     }
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn cmd_arrows_move_to_shell_line_boundaries() {
+    let modifiers = gpui::Modifiers {
+        platform: true,
+        ..gpui::Modifiers::default()
+    };
+    assert_eq!(key_bytes("left", None, modifiers), b"\x01");
+    assert_eq!(key_bytes("right", None, modifiers), b"\x05");
+    for key in ["up", "down", "c", "v"] {
+        assert!(terminal_key_bytes(&key_event(key, None, modifiers)).is_none());
+    }
+    for key in ["left", "right"] {
+        for extra in [
+            gpui::Modifiers {
+                shift: true,
+                ..modifiers
+            },
+            gpui::Modifiers {
+                function: true,
+                ..modifiers
+            },
+        ] {
+            assert!(terminal_key_bytes(&key_event(key, None, extra)).is_none());
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn cmd_line_motion_matches_ctrl_a_e_including_kitty_press_repeat_and_release() {
+    for flags in 0..=31 {
+        for application_cursor in [false, true] {
+            let mode = TerminalKeyMode {
+                application_cursor,
+                kitty_keyboard_disambiguate: flags & 1 != 0,
+                kitty_keyboard_report_event_types: flags & 2 != 0,
+                kitty_keyboard_report_alternate_keys: flags & 4 != 0,
+                kitty_keyboard_report_all_keys_as_esc: flags & 8 != 0,
+                kitty_keyboard_report_associated_text: flags & 16 != 0,
+                ..TerminalKeyMode::default()
+            };
+            for (arrow, key) in [("left", "a"), ("right", "e")] {
+                let cmd = gpui::Modifiers {
+                    platform: true,
+                    ..gpui::Modifiers::default()
+                };
+                let ctrl = mods(false, false, true);
+                for is_held in [false, true] {
+                    let mut actual = key_event(arrow, None, cmd);
+                    let mut expected = key_event(key, None, ctrl);
+                    actual.is_held = is_held;
+                    expected.is_held = is_held;
+                    assert_eq!(
+                        terminal_key_bytes_with_mode(&actual, mode),
+                        terminal_key_bytes_with_mode(&expected, mode),
+                        "Cmd+{arrow}, flags={flags}, application_cursor={application_cursor}, held={is_held}"
+                    );
+                }
+                assert_eq!(
+                    terminal_key_release_bytes_with_mode(&key_up_event(arrow, None, cmd), mode),
+                    terminal_key_release_bytes_with_mode(&key_up_event(key, None, ctrl), mode),
+                    "Cmd+{arrow} release, flags={flags}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn platform_arrows_remain_reserved_outside_macos() {
+    let modifiers = gpui::Modifiers {
+        platform: true,
+        ..gpui::Modifiers::default()
+    };
+    for key in ["left", "right"] {
+        assert!(terminal_key_bytes(&key_event(key, None, modifiers)).is_none());
+    }
+}
